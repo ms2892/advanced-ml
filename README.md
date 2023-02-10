@@ -10,7 +10,7 @@ Features: This folder would contain any kind of features extracted from the data
 
 Models: This folder will contain the different model implementations that will be replicated throughout this project. The training script / class can be kept here
 
-Notebooks: Keep the notebooks created in this folder. 
+Notebooks: Keep the notebooks created (Finished) in this folder. Also for initial development, have the notebooks in the current directory. This way you can import modules like models.file_name.class_name or models.file_name.function_name
 
 Report: The pdf files that can be created for this project can be created here
 
