@@ -1,4 +1,4 @@
-# advanced-ml
+# MLMI 4 Replication Project
 Implementation of Paper for MLMI4 Coursework
 
 
