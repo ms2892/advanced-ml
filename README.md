@@ -3,8 +3,10 @@ Implementation of Paper for MLMI4 Coursework. This GitHub repository implements 
 
 
 ## Basic Structure (for collaborators)
+---
+data (Not Present in the Repo): This folder would contain the data that will be used for this project. Please note that this will be dummy folder, the dataset won't actually be on the github repository but only used as a reference for local replication of the project.
 
-Data: This folder would contain the data that will be used for this project. Please note that this will be dummy folder, the dataset won't actually be on the github repository but only used as a reference for local replication of the project.
+__NOTE__: You will have to create a data folder in the local repository. To prevent uploading heavy datasets onto the github repo, the folder named data won't be pushed.
 
 Features: This folder would contain any kind of features extracted from the dataset
 
@@ -19,7 +21,7 @@ Utils: This folder keeps all the auxillary functions needed to implement the pap
 Visualization: The script / class for visualizing the models can be kept here. Also the images can be kept here as well 
 
 ## Github Basics (for collaborators)
-
+---
 Having some basic commands here for reference.
 
 ### Methodology of using this Repository
@@ -41,7 +43,7 @@ __Note__: The PR must be reviewed by someone to prevent any clashes or errors or
 To enable this workflow, a couple of basic github commands and functionailities are given below for everyone's reference. 
 
 ### Creating a branch
-
+---
 1) Upon opening the github repository you will most likely see a drop down on the top left of the file list as shown here:
 
 ![branch](visualization/readme_img/branch.jpg)
@@ -51,7 +53,7 @@ To enable this workflow, a couple of basic github commands and functionailities 
 3) Click on the _New Branch_ button and give an appropriate branch name to the branch. Also make sure to choose the branch source as __home_pc__.
 
 ### Cloning a Repository (from a branch)
-
+---
 1) Initially clone the repository from the main branch (Once)
 
 ```
@@ -71,7 +73,7 @@ git checkout branch_name
 ```
 
 ### Pushing to a branch
-
+---
 1) First of all make sure you are making your edits in the correct branch. Please follow steps 2 and 3 from Cloning a repository section
 
 2) Git pushes code in 3 steps: Add, Commit, Push. Follow the three command lines for a simple bare bone push
@@ -86,7 +88,7 @@ __Note__: There may be cases where there are merge conflicts. This usually happe
 
 
 ### Creating a Pull Request
-
+---
 1) Click on the Pull Request tab present amongst the other tabs.
 
 ![PR](visualization/readme_img/pr.png)
