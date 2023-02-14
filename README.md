@@ -17,3 +17,37 @@ Report: The pdf files that can be created for this project can be created here
 Utils: This folder keeps all the auxillary functions needed to implement the paper. Things like Augmentation, Resizing etc etc.
 
 Visualization: The script / class for visualizing the models can be kept here. Also the images can be kept here as well 
+
+## Github Basics (for collaborators)
+
+Having some basic commands here for reference.
+
+### Creating a branch
+
+1) Upon opening the github repository you will most likely see a drop down on the top left of the file list as shown here:
+
+![branch](visualization/readme_img/branch.jpg)
+
+2) Click on the home_pc drop down and select _View all branches_.
+
+3) Click on the _New Branch_ button and give an appropriate branch name to the branch. Also make sure to choose the branch source as __home_pc__.
+
+### Cloning a Repository (from a branch)
+
+1) Initially clone the repository from the main branch (Once)
+
+```
+git clone https://github.com/ms2892/advanced-ml
+```
+
+2) Pull the updates on this repository (everytime there is an update on the repository).
+
+```
+git pull
+```
+
+3) Use the git checkout command to access a particular branch
+
+```
+git checkout branch_name
+```
