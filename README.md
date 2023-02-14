@@ -51,3 +51,7 @@ git pull
 ```
 git checkout branch_name
 ```
+
+### Pushing to a branch
+
+1) 
