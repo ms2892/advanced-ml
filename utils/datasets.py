@@ -134,18 +134,19 @@ class Datasets():
     def get_MNIST(self):
         """
             Method:
-                Returns a dataset object with MNIST dataset in it.
+                Returns 2 dataset objects (training and testing) with MNIST dataset in it.
             Args:
                 None
             Output:
-                (Dataset Object):   Returns the dataset object containing the MNIST dataset
+                (Dataset Object):   Returns the dataset object containing the training MNIST dataset
+                (Dataset Object):   Returns the dataset object containing the testing MNIST dataset
         """
         
         # Generate the dataset object for MNIST
-        data = torchvision.datasets.MNIST('../data/MNIST',download=True)
-        
+        train_data = torchvision.datasets.MNIST('../data/MNIST',transform=transforms.ToTensor(),download=True,train=True)
+        test_data = torchvision.datasets.MNIST('../data/MNIST',train=False,transform=transforms.ToTensor())
         # Return the dataset object
-        return data
+        return train_data,test_data
     
     def regression_function(self,x,sigma=0.02):
         """
