@@ -143,8 +143,9 @@ class Datasets():
         """
         
         # Generate the dataset object for MNIST
-        train_data = torchvision.datasets.MNIST('../data/MNIST',transform=transforms.ToTensor(),download=True,train=True)
-        test_data = torchvision.datasets.MNIST('../data/MNIST',train=False,transform=transforms.ToTensor())
+        train_data = torchvision.datasets.MNIST('data/MNIST',transform=transforms.ToTensor(),download=True,train=True)
+        test_data = torchvision.datasets.MNIST('data/MNIST',train=False,transform=transforms.ToTensor())
+        
         # Return the dataset object
         return train_data,test_data
     
@@ -181,8 +182,8 @@ class Datasets():
                 (Dataset Object) : The second unpacked variable will correspond to the test dataset object
         """
         
-        train_pth = 'train.csv'
-        test_pth = 'test.csv'
+        train_pth = 'utils/train.csv'
+        test_pth = 'utils/test.csv'
         logging.info('get_regression method called')
         
         # Check if the dataset is in the utils path
@@ -190,8 +191,8 @@ class Datasets():
             logging.info('Found the Files')
             
             # If found then load the files
-            train_df = pd.read_csv('train.csv')
-            test_df = pd.read_csv('test.csv')
+            train_df = pd.read_csv(train_pth)
+            test_df = pd.read_csv(test_pth)
             train_df = train_df.iloc[:].values
             test_df = test_df.iloc[:].values
             
@@ -227,8 +228,8 @@ class Datasets():
             test_df = pd.DataFrame(test_df)
             
             # Save it in a CSV File
-            train_df.to_csv('train.csv',index=False)
-            test_df.to_csv('test.csv',index=False)
+            train_df.to_csv(train_pth,index=False)
+            test_df.to_csv(test_pth,index=False)
             logging.info('Saved train.csv and test.csv files')
         
         # Reshape to match the shape -> (Batch * Feature)
@@ -247,7 +248,7 @@ class Datasets():
     def download_UCI(self):
         """
             Method:
-                This method downloads the UCI Mushroom dataset in the ..data/UCI_Mushroom folder
+                This method downloads the UCI Mushroom dataset in the ../data/UCI_Mushroom folder
             Args:
                 None
             Output:
@@ -255,19 +256,19 @@ class Datasets():
         """
         
         # Check if the dataset has been downloaded
-        if not os.path.exists('../data/UCI_Mushroom'):
+        if not os.path.exists('data/UCI_Mushroom'):
             logging.info('UCI Mushroom Dataset Not Found')
             logging.info('Downloading UCI Mushroom Dataset and saving it in location ../data/UCI_Mushroom')
             
             # If not found then make the directory 
-            os.mkdir('../data/UCI_Mushroom')
+            os.mkdir('data/UCI_Mushroom')
             
             # Download the dataset
-            urllib.request.urlretrieve("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/agaricus-lepiota.data", "../data/UCI_Mushroom/agaricus-lepiota.data")
-            urllib.request.urlretrieve("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/agaricus-lepiota.names", "../data/UCI_Mushroom/agaricus-lepiota.names")
-            urllib.request.urlretrieve("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/expanded.Z", "../data/UCI_Mushroom/expanded.Z")
-            urllib.request.urlretrieve("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/README", "../data/UCI_Mushroom/README")
-            urllib.request.urlretrieve("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/Index", "../data/UCI_Mushroom/Index")
+            urllib.request.urlretrieve("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/agaricus-lepiota.data", "data/UCI_Mushroom/agaricus-lepiota.data")
+            urllib.request.urlretrieve("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/agaricus-lepiota.names", "data/UCI_Mushroom/agaricus-lepiota.names")
+            urllib.request.urlretrieve("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/expanded.Z", "data/UCI_Mushroom/expanded.Z")
+            urllib.request.urlretrieve("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/README", "data/UCI_Mushroom/README")
+            urllib.request.urlretrieve("https://archive.ics.uci.edu/ml/machine-learning-databases/mushroom/Index", "data/UCI_Mushroom/Index")
             logging.info('Download Complete')
         else:
             
