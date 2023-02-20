@@ -211,26 +211,14 @@ class TrainModelWrapper:
             self.counter = 0
             self.min_metric=np.inf
             self.mode = mode
+            self.q = []
             
         def early_stop(self,validation_metric):
             if self.mode == 0:
-                if validation_metric < self.min_metric:
-                    self.min_metric = validation_metric
-                    self.counter = 0
-                elif abs(validation_metric-self.min_metric) > self.min_delta:
-                    self.counter += 1
-                    if self.counter >= self.patience:
-                        return True
-            else:
-                if validation_metric > self.min_metric:
-                    self.min_metric = validation_metric
-                    self.counter = 0
-                elif abs(validation_metric-self.min_metric) < (self.min_delta):
-                    self.counter += 1
-                    if self.counter >= self.patience:
-                        return True
-            return False
-        
+                if len(self.q)!=self.patience:
+                    self.q.append(validation_metric)
+                else:
+                    
 if __name__=='__main__':
     args={
         'model': 123,

@@ -1,0 +1,14 @@
+2023-02-20 19:21:21,717 [INFO] get_regression method called
+2023-02-20 19:21:21,718 [INFO] Found the Files
+2023-02-20 19:23:36,964 [INFO] get_regression method called
+2023-02-20 19:23:36,974 [INFO] Found the Files
+2023-02-20 19:23:48,327 [INFO] get_regression method called
+2023-02-20 19:23:48,330 [INFO] Found the Files
+2023-02-20 19:24:47,932 [INFO] get_regression method called
+2023-02-20 19:24:47,933 [INFO] Found the Files
+2023-02-20 19:25:00,510 [INFO] get_regression method called
+2023-02-20 19:25:00,517 [CRITICAL] Datasets not found in the current folder or corrupted files
+2023-02-20 19:25:00,559 [INFO] Saved train.csv and test.csv files
+2023-02-20 19:26:36,200 [INFO] get_regression method called
+2023-02-20 19:26:36,205 [INFO] Found the Files
+2023-02-20 19:27:23,163 [INFO] Folder for UCI Mushroom found in the data folder. If the files are corrupted please delete the folder at location ../data/UCI_Mushroom and re-run this command
