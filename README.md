@@ -74,9 +74,9 @@ git checkout branch_name
 
 ### Install the dependencies
 
-1) Create a new conda environment using
+1) Create the environment from the `environment.yml` file
 ```
-conda create -n <env_name>
+conda env create -f environment.yml
 ```
 
 2) Activate the environment
@@ -84,9 +84,15 @@ conda create -n <env_name>
 conda activate <env_name>
 ```
 
-3) Install the dependencies
+### Install new dependencies
+
+Feel free to install new dependencies, but make sure to update the `environment.yml` file using 
 ```
-conda activate <env_name>
+conda env export > environment.yml
+```
+and then update the environment itself using
+```
+conda env update -f environment.yml --prune
 ```
 
 ### Pushing to a branch
