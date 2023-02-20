@@ -1,10 +1,8 @@
 import torch
 import torchvision
-from torchvision import datasets, models, transforms
-from torch.utils.data import Dataset,DataLoader
-import torch.nn as nn
+from torchvision import transforms
+from torch.utils.data import Dataset
 import numpy as np
-import math
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -23,72 +21,6 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-
-class Regression(Dataset):
-    """
-        Class:
-            This class helps in creating a Dataset object for the user.
-            The user can eventually use this class to forward to a DataLoader for training
-            
-        Attributes:
-            self.x          (np.array): This contains the input value of the regression data
-            self.y          (np.array): This contains the output value of the regression data
-            self.n          (int)     : This tracks the length of the dataset
-            self.transform  (Object)  : This object contains all the transforms that need to be applied
-                                        to the data points
-    """
-    def __init__(self,x,y,transform=None):
-        super(Regression,self).__init__()
-        
-        # Input Values
-        self.x = x
-        
-        # Output Values
-        self.y = y
-        
-        # Length of the Dataset
-        self.n = len(x)
-        
-        # Transforms on the dataset
-        self.transform=transform
-        
-    def __getitem__(self, index):
-        """
-            Method:
-                This method corresponds to overriding the functionality of the class when it's index
-                Meaning return value when the class is called in such a manner -> class_name[index]
-                
-            Args:
-                index (int): The index corresponding to the datapoint needed
-            
-            Output:
-                (tuple):    Returns tensor objects in a tuple that corresponds to (x,y) 
-        """    
-        
-        # Extract the samples
-        sample = self.x[index],self.y[index]
-        
-        # Apply the transforms
-        if self.transform:
-            x,y = self.transform(sample)
-            
-        # Return the transforms
-        return x,y
-    
-    def __len__(self):
-        """
-            Method:
-                This method overrides the functionality when len() function is applied on the class
-            Args:
-                None
-            Output:
-                (int):  Describes the length of the dataset
-        """
-        
-        # Return the length of the dataset
-        return self.n
-
-
 
 class ToTensor:
     # Transformation to convert sample to tensor
@@ -182,8 +114,8 @@ class Datasets():
                 (Dataset Object) : The second unpacked variable will correspond to the test dataset object
         """
         
-        train_pth = 'utils/train.csv'
-        test_pth = 'utils/test.csv'
+        train_pth = 'utils/train.npy'
+        test_pth = 'utils/test.npy'
         logging.info('get_regression method called')
         
         # Check if the dataset is in the utils path
@@ -191,16 +123,14 @@ class Datasets():
             logging.info('Found the Files')
             
             # If found then load the files
-            train_df = pd.read_csv(train_pth)
-            test_df = pd.read_csv(test_pth)
-            train_df = train_df.iloc[:].values
-            test_df = test_df.iloc[:].values
+            train = np.load(train_pth)
+            test = np.load(test_pth)
+        
+            train_x = train[:,0]
+            train_y = train[:,1]
             
-            train_x = train_df[:,0]
-            train_y = train_df[:,1]
-            
-            test_x = test_df[:,0]
-            test_y = test_df[:,1]
+            test_x = test[:,0]
+            test_y = test[:,1]
         else:
             logging.critical('Datasets not found in the current folder or corrupted files')
             
@@ -221,16 +151,22 @@ class Datasets():
             train_y = self.regression_function(train_x)
             test_y = self.regression_function(test_x)
             
-            # Convert to a Pandas DataFrame Object
-            train_df = {'x':train_x,'y':train_y}
-            test_df = {'x':test_x,'y':test_y}
-            train_df = pd.DataFrame(train_df)
-            test_df = pd.DataFrame(test_df)
             
-            # Save it in a CSV File
-            train_df.to_csv(train_pth,index=False)
-            test_df.to_csv(test_pth,index=False)
-            logging.info('Saved train.csv and test.csv files')
+            # Reshape the dataset into [Batches, features]
+            train_x = np.reshape(train_x,(train_x.shape[0],1))
+            train_y = np.reshape(train_y,(train_y.shape[0],1))
+            
+            test_x = np.reshape(test_x,(test_x.shape[0],1))
+            test_y = np.reshape(test_y,(test_y.shape[0],1))
+            
+            train = np.concatenate([train_x,train_y],axis=1)
+            test = np.concatenate([test_x,test_y],axis=1)
+            
+            # Save the numpy arrays
+            np.save(train_pth,train)
+            np.save(test_pth,test)
+
+            logging.info('Saved train.npy and test.npy files')
         
         # Reshape to match the shape -> (Batch * Feature)
         train_x = np.reshape(train_x,(train_x.shape[0],1))
@@ -240,9 +176,12 @@ class Datasets():
 
         # Transforms that need to be performed on the dataset
         compose = transforms.Compose([ToTensor()])
+        
+        train_dataset = torch.utils.data.TensorDataset(train_x,train_y)
+        test_dataset = torch.utils.data.TensorDataset(test_x,test_y)
 
         # Return the Dataset objects for the training and testing dataset
-        return Regression(train_x,train_y,transform=compose),Regression(test_x,test_y,transform=compose)
+        return train_dataset,test_dataset
             
             
     def download_UCI(self):
@@ -274,9 +213,3 @@ class Datasets():
             
             # Found the folder.
             logging.info('Folder for UCI Mushroom found in the data folder. If the files are corrupted please delete the folder at location ../data/UCI_Mushroom and re-run this command')
- 
- 
-# This was meant for Debugging        
-if __name__=='__main__':
-    dataset = Datasets()
-    mnist = dataset.download_UCI()
