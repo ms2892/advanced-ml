@@ -72,6 +72,23 @@ git pull
 git checkout branch_name
 ```
 
+### Install the dependencies
+
+1) Create a new conda environment using
+```
+conda create -n <env_name>
+```
+
+2) Activate the environment
+```
+conda activate <env_name>
+```
+
+3) Install the dependencies
+```
+conda activate <env_name>
+```
+
 ### Pushing to a branch
 ---
 1) First of all make sure you are making your edits in the correct branch. Please follow steps 2 and 3 from Cloning a repository section
