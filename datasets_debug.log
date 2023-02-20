@@ -46,3 +46,6 @@
 2023-02-20 23:48:28,535 [CRITICAL] Datasets not found in the current folder or corrupted files
 2023-02-20 23:48:28,545 [INFO] Saved train.npy and test.npy files
 2023-02-20 23:48:29,197 [INFO] Folder for UCI Mushroom found in the data folder. If the files are corrupted please delete the folder at location ../data/UCI_Mushroom and re-run this command
+2023-02-20 23:49:06,048 [INFO] get_regression method called
+2023-02-20 23:49:06,058 [INFO] Found the Files
+2023-02-20 23:49:06,705 [INFO] Folder for UCI Mushroom found in the data folder. If the files are corrupted please delete the folder at location ../data/UCI_Mushroom and re-run this command
