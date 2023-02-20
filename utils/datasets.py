@@ -93,7 +93,8 @@ class Datasets():
         """
         
         # Calculate the outputs with Gaussian Noise applied
-        y = x + 0.3 * np.sin(2*np.pi*(x+np.random.normal(0,sigma,x.shape))) + 0.3 * np.sin(4*np.pi*(x + np.random.normal(0,sigma,x.shape))) + np.random.normal(0,sigma,x.shape)
+        noise = np.random.normal(0,sigma,x.shape)
+        y = x + 0.3 * np.sin(2*np.pi*(x+noise)) + 0.3 * np.sin(4*np.pi*(x + noise)) + noise
         
         # Return Output Values
         return y    
@@ -175,7 +176,11 @@ class Datasets():
         test_y = np.reshape(test_y,(test_y.shape[0],1))
 
         # Transforms that need to be performed on the dataset
-        compose = transforms.Compose([ToTensor()])
+        to_tensor = ToTensor()
+        
+        train_x,train_y = to_tensor((train_x,train_y))
+        
+        test_x,test_y = to_tensor((test_x,test_y))
         
         train_dataset = torch.utils.data.TensorDataset(train_x,train_y)
         test_dataset = torch.utils.data.TensorDataset(test_x,test_y)

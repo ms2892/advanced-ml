@@ -24,3 +24,25 @@
 2023-02-20 23:19:29,441 [INFO] get_regression method called
 2023-02-20 23:19:29,441 [INFO] Found the Files
 2023-02-20 23:19:29,974 [INFO] Folder for UCI Mushroom found in the data folder. If the files are corrupted please delete the folder at location ../data/UCI_Mushroom and re-run this command
+2023-02-20 23:21:37,739 [INFO] get_regression method called
+2023-02-20 23:21:37,743 [INFO] Found the Files
+2023-02-20 23:39:12,706 [INFO] get_regression method called
+2023-02-20 23:39:12,714 [CRITICAL] Datasets not found in the current folder or corrupted files
+2023-02-20 23:39:12,722 [INFO] Saved train.npy and test.npy files
+2023-02-20 23:45:11,030 [INFO] get_regression method called
+2023-02-20 23:45:11,030 [CRITICAL] Datasets not found in the current folder or corrupted files
+2023-02-20 23:45:11,041 [INFO] Saved train.npy and test.npy files
+2023-02-20 23:45:45,952 [INFO] get_regression method called
+2023-02-20 23:45:45,952 [INFO] Found the Files
+2023-02-20 23:46:44,176 [INFO] get_regression method called
+2023-02-20 23:46:44,176 [INFO] Found the Files
+2023-02-20 23:47:48,359 [INFO] get_regression method called
+2023-02-20 23:47:48,359 [INFO] Found the Files
+2023-02-20 23:47:51,125 [INFO] Folder for UCI Mushroom found in the data folder. If the files are corrupted please delete the folder at location ../data/UCI_Mushroom and re-run this command
+2023-02-20 23:48:03,442 [INFO] get_regression method called
+2023-02-20 23:48:03,443 [INFO] Found the Files
+2023-02-20 23:48:04,424 [INFO] Folder for UCI Mushroom found in the data folder. If the files are corrupted please delete the folder at location ../data/UCI_Mushroom and re-run this command
+2023-02-20 23:48:28,535 [INFO] get_regression method called
+2023-02-20 23:48:28,535 [CRITICAL] Datasets not found in the current folder or corrupted files
+2023-02-20 23:48:28,545 [INFO] Saved train.npy and test.npy files
+2023-02-20 23:48:29,197 [INFO] Folder for UCI Mushroom found in the data folder. If the files are corrupted please delete the folder at location ../data/UCI_Mushroom and re-run this command
