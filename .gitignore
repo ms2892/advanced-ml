@@ -2,3 +2,11 @@ data/
 Data/
 .ipynb_checkpoints
 test.ipynb
+runs/
+models/__pycache__/
+features/__pycache__/
+notebooks/__pycache__/
+preprocess/__pycache__/
+report/__pycache__/
+utils/__pycache__/
+visualization/__pycache__/
