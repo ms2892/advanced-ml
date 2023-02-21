@@ -256,7 +256,7 @@ class TrainModelWrapper:
         
         # Create the early stopping checkpoint class
         if self.es_flag:
-            earlystop = self.EarlyStop(mode = self.c_flag)
+            earlystop = self.EarlyStop()
         else:
             earlystop = None
             
