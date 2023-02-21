@@ -214,10 +214,13 @@ class TrainModelWrapper:
             self.q = []
             
         def early_stop(self,validation_metric):
-            if self.mode == 0:
-                if len(self.q)!=self.patience:
-                    self.q.append(validation_metric)
-                else:
+            if len(self.q)!=self.patience:
+                self.q.append(validation_metric)
+            else:
+                avg_metric = sum(self.q)/self.patience
+                if abs(validation_metric-avg_metric)<self.min_delta:
+                    return True
+            return False
                     
 if __name__=='__main__':
     args={
