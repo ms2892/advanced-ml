@@ -88,7 +88,7 @@ conda activate <env_name>
 
 Feel free to install new dependencies, but make sure to update the `environment.yml` file using 
 ```
-conda env export > environment.yml
+conda env export > environment.yml --no-builds
 ```
 and then update the environment itself using
 ```
