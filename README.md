@@ -90,7 +90,7 @@ Feel free to install new dependencies, but make sure to update the `environment.
 ```
 conda env export > environment.yml --no-builds
 ```
-and then update the environment itself using
+and then other users can update the environment for themselves using
 ```
 conda env update -f environment.yml --prune
 ```
