@@ -5,4 +5,6 @@ test.ipynb
 runs/
 __pycache__/
 datasets_debug.log
+test*.ipynb
+trainer_debug.log
 .DS_Store
