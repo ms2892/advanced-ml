@@ -3,7 +3,6 @@ import torchvision
 from torchvision import transforms
 import numpy as np
 import os
-import pandas as pd
 import logging
 import urllib
 
