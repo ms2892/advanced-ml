@@ -33,14 +33,14 @@ class TrainModelWrapper:
             
             args = {
                 'model'         : model (object),
-                'dataset'       : training dataset (object),
+                'train_dataset' : training dataset (object),
                 'criterion'     : loss function (object),
                 'batch_size'    : batch size (int),
                 'optimizer'     : optimizer (object),
                 'scheduler'     : scheduler (object) (optional),
                 'es_flag'       : Boolean value to decide whether to use early stopping or not. (Default = False)
                 'num_epochs'    : number of epochs (int),   
-                'val_size'      : number of validation data points (int)
+                'val_dataset'   : Validation Dataset(object)
                 'mode'          : Boolean value to decide whether this training is a classification training or not. (Default = 0) 
                                       Possible Values [0,1,2] -> 
                                         0 - Regression
@@ -89,7 +89,7 @@ class TrainModelWrapper:
         print('''
               args = {
                   \'model\'         : model (object),
-                  \'dataset\'       : training dataset (object),
+                  \'train_dataset\' : training dataset (object),
                   \'criterion\'     : loss function (object),
                   \'batch_size\'    : batch size (int),
                   \'optimizer\'     : optimizer (object),
@@ -140,8 +140,8 @@ class TrainModelWrapper:
             raise Exception("Validation dataset not Found")
         
         # Check if dataset is present in the configuration
-        if 'dataset' in kwargs:
-            self.train_dataset = kwargs['dataset']
+        if 'train_dataset' in kwargs:
+            self.train_dataset = kwargs['train_dataset']
         else:
             
             # Raise an error if Dataset is not found 
