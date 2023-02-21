@@ -73,26 +73,26 @@ git checkout branch_name
 ```
 
 ### Install the dependencies
+---
+1) Run the following command
+```
+pip install -r requirements.txt
+```
 
-1) Create the environment from the `environment.yml` file
-```
-conda env create -f environment.yml
-```
-
-2) Activate the environment
-```
-conda activate <env_name>
-```
+2) You're good to go
 
 ### Install new dependencies
+---
+Feel free to install new dependencies, but make sure to update the `requirements.txt` file using 
+```
+pipreqs
+```
+This command will go through all the files present in the current directory and create a `requirements.txt` file. Please note that jupyter notebooks and gitignore files will be ignored hence you might have to add them separately. 
 
-Feel free to install new dependencies, but make sure to update the `environment.yml` file using 
+if you don't have pipreqs then you can install it by using the following command
+
 ```
-conda env export > environment.yml --no-builds
-```
-and then other users can update the environment for themselves using
-```
-conda env update -f environment.yml --prune
+pip install pipreqs
 ```
 
 ### Pushing to a branch
