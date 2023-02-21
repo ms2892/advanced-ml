@@ -124,6 +124,8 @@ __Note__: There may be cases where there are merge conflicts. This usually happe
 
 5) Write the description and title of the pull request
 
+6) On the right pane, on Reviewers choose one of the other two collaborators for Reviewing your Pull Request. 
+
 6) Click on Create Pull Request 
 
 7) Someone will review your code and merge it onto the _home_pc_ branch.
