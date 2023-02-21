@@ -96,7 +96,7 @@ class TrainModelWrapper:
                   \'scheduler\'     : scheduler (object) (optional),
                   \'es_flag\'       : Boolean value to decide whether to use early stopping or not. (Default = False)
                   \'num_epochs\'    : number of epochs (int),   
-                  \'val_size\'      : number of validation data points (int)
+                  \'val_dataset\'   : Validation Dataset to be passed (object)
                   \'mode\': Boolean value to decide whether this training is a classification training or not. (Default = 0) 
                                       Possible Values [0,1,2] -> 
                                         0 - Regression
@@ -130,30 +130,18 @@ class TrainModelWrapper:
             self.error_print()
             raise Exception("Model Object not Found")
         
-        # Check if validation size is present in the configuration
-        if 'val_size' in kwargs:
-            self.val_size = kwargs['val_size']
+        # Check if validation dataset is present in the configuration
+        if 'val_dataset' in kwargs:
+            self.val_dataset = kwargs['val_dataset']
         else:
-            # Raise Error if val_size is missing
-            logging.error("Validation size not found amongst the Arguments")
+            # Raise Error if val_dataset is missing
+            logging.error("Validation dataset not found amongst the Arguments")
             self.error_print()
-            raise Exception("Validation size not Found")
+            raise Exception("Validation dataset not Found")
         
         # Check if dataset is present in the configuration
         if 'dataset' in kwargs:
-            self.dataset = kwargs['dataset']
-            
-            # Assert a check that validation size is less than training size
-            if self.val_size>len(self.dataset):
-                
-                # Raise error if val_size is greater than training size 
-                raise Exception("Please give validation size less than training size")
-            
-            # Define the training size
-            self.train_size = len(self.dataset)-self.val_size
-            
-            # Split the dataset into training and validation
-            self.train_dataset,self.val_dataset = torch.utils.data.random_split(self.dataset, [self.train_size, self.val_size])
+            self.train_dataset = kwargs['dataset']
         else:
             
             # Raise an error if Dataset is not found 
