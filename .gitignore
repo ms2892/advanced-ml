@@ -1,2 +1,7 @@
 data/
 Data/
+test.ipynb
+.ipynb_checkpoints
+runs/
+__pycache__/
+datasets_debug.log
