@@ -1,10 +1,8 @@
 import torch
 import torchvision
 from torchvision import transforms
-from torch.utils.data import Dataset
 import numpy as np
 import os
-import matplotlib.pyplot as plt
 import pandas as pd
 import logging
 import urllib
@@ -218,3 +216,6 @@ class Datasets():
             
             # Found the folder.
             logging.info('Folder for UCI Mushroom found in the data folder. If the files are corrupted please delete the folder at location ../data/UCI_Mushroom and re-run this command')
+            
+            
+            
