@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+import torch.distributions as D
 
 
 def softplus_inverse(x):
@@ -13,7 +14,7 @@ def softplus_inverse(x):
 class VariationalLinear(nn.Module):
     def __init__(
         self,
-        in_features:int, out_features:int, prior, bias=True,
+        in_features:int, out_features:int, prior_distribution, bias=True,
         nonlinearity="relu", param=None,
     ):
         '''
@@ -56,33 +57,59 @@ class VariationalLinear(nn.Module):
             self.mu_bias = nn.Parameter(torch.empty(out_features).fill_(0))
             self.rho_bias = nn.Parameter(torch.empty(out_features).fill_(scale))
         
-        self.prior = prior
+        self.prior_distribution = prior_distribution
+
+        self.kl_divergence = 0
     
 
     def forward(self, x:torch.Tensor):
-        sigma = F.softplus(self.rho_weights)
-        eps = torch.randn(self.mu_weights.shape)
-        self.W = self.mu_weights + sigma * eps
+        # Calculate W
+        self.weight_distribution = D.Normal(
+            loc=self.mu_weights, scale=F.softplus(self.rho_weights)
+        )
+        self.W = self.weight_distribution.sample()
 
+        # Multiply input by W
         out = torch.mm(x, self.W.T)
 
+        # Handle bias
         if self.bias:
-            sigma = F.softplus(self.rho_bias)
-            eps = torch.randn(self.mu_bias.shape)
-            self.b = self.mu_bias + sigma * eps
+            self.bias_distribution = D.Normal(
+                loc=self.mu_bias, scale=F.softplus(self.rho_bias)
+            )
+            self.b = self.bias_distribution.sample()
 
             out += self.b
+        
+        # Update KL divergence
+        self.update_kl_divergence()
 
         return out
     
 
-    def get_kl_divergence(self):
-        torch.distribution
+    def update_kl_divergence(self):
+        self.kl_divergence += self.weight_distribution.log_prob(self.W).sum()
+        self.kl_divergence -= self.prior_distribution.log_prob(self.W).sum()
+
+        if self.bias:
+            self.kl_divergence += self.weight_distribution.log_prob(self.W).sum()
+            self.kl_divergence -= self.prior_distribution.log_prob(self.W).sum()
+    
+
+    def reset_kl_divergence(self):
+        self.kl_divergence = 0
 
 
 def main():
-    prior = None
-    layer = VariationalLinear(in_features=10000, out_features=1000, bias=True, prior=prior)
+    p = 1/4
+    mixture_distribution = D.Categorical(probs=torch.tensor([p, 1 - p]))
+    component_distribution = D.Normal(loc=torch.zeros(2), scale=torch.tensor([0.1, 1]))
+    prior_distribution = D.MixtureSameFamily(
+        mixture_distribution=mixture_distribution, component_distribution=component_distribution
+    )
+    layer = VariationalLinear(
+        in_features=10000, out_features=1000, bias=True, prior_distribution=prior_distribution, nonlinearity="linear"
+    )
     
     for p in layer.parameters():
         print(p.shape)
@@ -92,6 +119,7 @@ def main():
         out = layer(x)
     
     print(out.shape)
+    print(out.mean(), out.std()) # Should be around 0 and 1
     
 
 if __name__ == "__main__":
