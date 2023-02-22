@@ -92,8 +92,8 @@ class VariationalLinear(nn.Module):
         self.kl_divergence -= self.prior_distribution.log_prob(self.W).sum()
 
         if self.bias:
-            self.kl_divergence += self.weight_distribution.log_prob(self.W).sum()
-            self.kl_divergence -= self.prior_distribution.log_prob(self.W).sum()
+            self.kl_divergence += self.bias_distribution.log_prob(self.b).sum()
+            self.kl_divergence -= self.prior_distribution.log_prob(self.b).sum()
     
 
     def reset_kl_divergence(self):
@@ -134,6 +134,18 @@ def main():
     with torch.no_grad():
         out = layer(x)
     print(layer.kl_divergence) # Should be approx. equal to initial again
+
+    with torch.no_grad():
+        layer.mu_weights += 0.1
+        layer.rho_weights *= 0.5
+
+        layer.mu_bias -= 0.1
+        layer.rho_bias *= 0.1
+
+    layer.reset_kl_divergence()
+    with torch.no_grad():
+        out = layer(x)
+    print(layer.kl_divergence) # Should be different this time
     
 
 if __name__ == "__main__":
