@@ -23,10 +23,8 @@ class VariationalLinear(nn.Module):
 
         # Calculate gain
         gain = torch.nn.init.calculate_gain(nonlinearity=nonlinearity, param=param)
-        print(gain)
-        # Transform the scale of gain
+        # Transform the gain according to the parameterization for sigma in the paper
         scale = torch.log(torch.exp(gain / torch.sqrt(torch.tensor(in_features))) - 1)
-        print(scale)
 
         # Note that initialization is so that initially the sampled weights follow
         # N(0, gain ** 2 / in_features) distribution. This helps retain output distribution to
@@ -58,27 +56,16 @@ class VariationalLinear(nn.Module):
 
 
 def main():
-    import torch.nn.functional as F
-
-    # layer = VariationalLinear(in_features=10000, out_features=1000, bias=True)
-    layer = VariationalLinear(in_features=10000, out_features=1000, bias=False, nonlinearity="relu")
-
-    x = torch.randn((256, 10000))
-    with torch.no_grad():
-        out = layer(x)
-        out = F.relu(out)
-
-    print(out.mean(), out.std())
-
+    layer = VariationalLinear(in_features=10000, out_features=1000, bias=True)
     
-    layer = VariationalLinear(in_features=10000, out_features=1000, bias=False, nonlinearity="tanh")
+    for p in layer.parameters():
+        print(p.shape)
 
     x = torch.randn((256, 10000))
     with torch.no_grad():
         out = layer(x)
-        out = torch.tanh(out)
-
-    print(out.mean(), out.std())
+    
+    print(out.shape)
     
 
 if __name__ == "__main__":
