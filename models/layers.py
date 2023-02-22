@@ -120,6 +120,20 @@ def main():
     
     print(out.shape)
     print(out.mean(), out.std()) # Should be around 0 and 1
+
+    print(layer.kl_divergence) # Initial KL divergence
+    print(2 * layer.kl_divergence) # Twice initial KL divergence
+
+
+    with torch.no_grad():
+        out = layer(x)
+    print(layer.kl_divergence) # Should be twice the initial
+
+
+    layer.reset_kl_divergence()
+    with torch.no_grad():
+        out = layer(x)
+    print(layer.kl_divergence) # Should be approx. equal to initial again
     
 
 if __name__ == "__main__":
