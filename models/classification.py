@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 
-class MLPModel(nn.Module):
+class Classification(nn.Module):
     '''
         Class:
             This class is meant to mimic the Artificial Neural Network used in the paper
@@ -20,7 +20,7 @@ class MLPModel(nn.Module):
             forward :   defines the forward pass of the network
     '''
 
-    def __init__(self, input_dim, output_dim, hidden_layer):
+    def __init__(self, input_dim, output_dim, hl_type, hl_units):
         '''
             Constructor:
                 This method describes the constructor for the network
@@ -30,10 +30,10 @@ class MLPModel(nn.Module):
                 output_dim  :   describes number of output nodes to have
                 hidden_layer:   describes number of hidden layer nodes to have
         '''
-        super(MLPModel,self).__init__()
-        self.inp = nn.Linear(input_dim, hidden_layer)
-        self.linear1 = nn.Linear(hidden_layer, hidden_layer)
-        self.out = nn.Linear(hidden_layer, output_dim)
+        super(Classification,self).__init__()
+        self.inp = hl_type(input_dim, hl_units)
+        self.linear1 = hl_type(hl_units, hl_units)
+        self.out = hl_type(hl_units, output_dim)
         self.relu = nn.ReLU()
         self.flatten = nn.Flatten()
 
@@ -59,7 +59,7 @@ class MLPModel(nn.Module):
         return output
 
 
-class MLPModel_Dropout(nn.Module):
+class Classification_Dropout(nn.Module):
     '''
         Class:
             This class is meant to mimic the Artificial Neural Network with dropout used in the paper
@@ -75,7 +75,7 @@ class MLPModel_Dropout(nn.Module):
             forward :   defines the forward pass of the network
     '''
 
-    def __init__(self, input_dim, output_dim, hidden_layer):
+    def __init__(self, input_dim, output_dim, hl_type,hl_units):
         '''
             Constructor:
                 This method describes the constructor for the network
@@ -85,10 +85,10 @@ class MLPModel_Dropout(nn.Module):
                 output_dim  :   describes number of output nodes to have
                 hidden_layer:   describes number of hidden layer nodes to have
         '''
-        super(MLPModel_Dropout,self).__init__()
-        self.inp = nn.Linear(input_dim, hidden_layer)
-        self.linear1 = nn.Linear(hidden_layer, hidden_layer)
-        self.out = nn.Linear(hidden_layer, output_dim)
+        super(Classification_Dropout,self).__init__()
+        self.inp = hl_type(input_dim, hl_units)
+        self.linear1 = hl_type(hl_units, hl_units)
+        self.out = hl_type(hl_units, output_dim)
         self.relu = nn.ReLU()
         self.flatten = nn.Flatten()
 
