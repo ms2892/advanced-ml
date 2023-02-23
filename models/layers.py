@@ -40,11 +40,7 @@ class VariationalLinear(nn.Module):
         # Calculate gain
         gain = torch.nn.init.calculate_gain(nonlinearity=nonlinearity, param=param)
         # Transform the gain according to the parameterization for sigma in the paper
-        scale = torch.log(torch.exp(gain / torch.sqrt(torch.tensor(in_features))) - 1)
-        print(scale)
-
         scale = softplus_inverse(gain / torch.sqrt(torch.tensor(in_features)))
-        print(scale)
 
         # Note that initialization is so that initially the sampled weights follow
         # N(0, gain ** 2 / in_features) distribution. This helps retain output distribution to
@@ -59,45 +55,38 @@ class VariationalLinear(nn.Module):
         
         self.prior_distribution = prior_distribution
 
-        self.kl_divergence = 0
-    
 
     def forward(self, x:torch.Tensor):
+        kl_divergence = 0
+
         # Calculate W
-        self.weight_distribution = D.Normal(
+        weight_distribution = D.Normal(
             loc=self.mu_weights, scale=F.softplus(self.rho_weights)
         )
-        self.W = self.weight_distribution.sample()
+        W = weight_distribution.sample()
+
+        # Calculate weight contribution to KL divergence
+        kl_divergence += weight_distribution.log_prob(W).sum()
+        kl_divergence -= self.prior_distribution.log_prob(W).sum()
 
         # Multiply input by W
-        out = torch.mm(x, self.W.T)
+        out = torch.mm(x, W.T)
 
         # Handle bias
         if self.bias:
-            self.bias_distribution = D.Normal(
+            bias_distribution = D.Normal(
                 loc=self.mu_bias, scale=F.softplus(self.rho_bias)
             )
-            self.b = self.bias_distribution.sample()
+            b = bias_distribution.sample()
 
-            out += self.b
-        
-        # Update KL divergence
-        self.update_kl_divergence()
+            # Add the bias
+            out += b
 
-        return out
-    
+            # Calculate bias contribution to KL divergence
+            kl_divergence += bias_distribution.log_prob(b).sum()
+            kl_divergence -= self.prior_distribution.log_prob(b).sum()
 
-    def update_kl_divergence(self):
-        self.kl_divergence += self.weight_distribution.log_prob(self.W).sum()
-        self.kl_divergence -= self.prior_distribution.log_prob(self.W).sum()
-
-        if self.bias:
-            self.kl_divergence += self.bias_distribution.log_prob(self.b).sum()
-            self.kl_divergence -= self.prior_distribution.log_prob(self.b).sum()
-    
-
-    def reset_kl_divergence(self):
-        self.kl_divergence = 0
+        return out, kl_divergence
 
 
 def main():
@@ -116,24 +105,29 @@ def main():
 
     x = torch.randn((256, 10000))
     with torch.no_grad():
-        out = layer(x)
+        out, kl_divergence = layer(x)
     
     print(out.shape)
     print(out.mean(), out.std()) # Should be around 0 and 1
 
-    print(layer.kl_divergence) # Initial KL divergence
-    print(2 * layer.kl_divergence) # Twice initial KL divergence
+    print(kl_divergence) # Initial KL divergence
+    print(2 * kl_divergence) # Twice initial KL divergence
 
 
     with torch.no_grad():
-        out = layer(x)
-    print(layer.kl_divergence) # Should be twice the initial
+        total_kl_divergence = 0
+
+        for _ in range(2):
+            out, kl_divergence = layer(x)
+            total_kl_divergence += kl_divergence
+
+    print(total_kl_divergence) # Should be twice the initial
 
 
-    layer.reset_kl_divergence()
     with torch.no_grad():
-        out = layer(x)
-    print(layer.kl_divergence) # Should be approx. equal to initial again
+        out, kl_divergence = layer(x)
+    print(kl_divergence) # Should be approx. equal to initial again
+
 
     with torch.no_grad():
         layer.mu_weights += 0.1
@@ -142,10 +136,9 @@ def main():
         layer.mu_bias -= 0.1
         layer.rho_bias *= 0.1
 
-    layer.reset_kl_divergence()
     with torch.no_grad():
-        out = layer(x)
-    print(layer.kl_divergence) # Should be different this time
+        out, kl_divergence = layer(x)
+    print(kl_divergence) # Should be different this time
     
 
 if __name__ == "__main__":
