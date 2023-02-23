@@ -106,18 +106,20 @@ class Regression_Dropout(nn.Module):
                 (tensor)    :   Output of the model after performing the forward pass
         '''
         x = self.flatten(x)
-        intermediate = self.inp(x)
-        
+
         # 20% Dropout at input layer
-        intermediate = F.dropout(intermediate, p=0.2)
-        intermediate = self.relu(intermediate)
-        intermediate = self.linear1(intermediate)
+        x = F.dropout(x, p=0.2)
         
+        intermediate = self.inp(x)
         # 50% Dropout at 1st linear layer
         intermediate = F.dropout(intermediate, p=0.5)
         intermediate = self.relu(intermediate)
         
         # 50 % dropout at 2nd linear layer
+        intermediate = self.linear1(intermediate)
+        intermediate = F.dropout(intermediate, p=0.5)
+        intermediate = self.relu(intermediate)
+        
+        # Output Nodes
         output = self.out(intermediate)
-        output = F.dropout(output, p=0.5)
         return output
