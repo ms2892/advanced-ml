@@ -56,7 +56,38 @@ class VariationalLinear(nn.Module):
         self.prior_distribution = prior_distribution
 
 
-    def forward(self, x:torch.Tensor):
+    def forward(self, x:torch.Tensor, n_samples=1):
+        '''
+            Calculates logits for the input x using "n_samples" samples of the weights.
+
+            Args:
+                x: tensor of shape (batch_size, in_features) if n_samples = 1
+                   tensor of shape (batch_size, 1, 1, in_features) if n_samples > 1
+            Output:
+                tuple (tensor, scalar tensor):
+                    - the first element is tensor of logits of the model for the input x.
+                      If n_samples = 1, then the shape is (batch_size, out_features).
+                      If n_samples > 1, then the shape is (batch_size, n_samples, out_features).
+                    - the second element is the KL divergence of the model weights sampled
+                      in the forward pass. It is a 0-dim tensor containing only one scalar.
+        '''
+        if n_samples == 1:
+            return self.forward_single_sample(x)
+        else:
+            return self.forward_multiple_samples(x, n_samples=n_samples)
+
+
+    def forward_single_sample(self, x:torch.Tensor):
+        '''
+            Args:
+                x: input tensor of size (batch_size, in_features)
+            Output:
+                tuple (tensor, scalar tensor):
+                    - the first element is tensor of logits of the model for the input x. The shape is (batch_size, out_features).
+                    - the second element is the KL divergence of the model weights sampled
+                      in the forward pass. It is a 0-dim tensor containing only one scalar.
+        '''
+        
         kl_divergence = 0
 
         # Calculate W
@@ -87,6 +118,52 @@ class VariationalLinear(nn.Module):
             kl_divergence -= self.prior_distribution.log_prob(b).sum()
 
         return out, kl_divergence
+    
+
+    def forward_multiple_samples(self, x:torch.Tensor, n_samples):
+        '''
+            Args:
+                x: input tensor of size (batch_size, 1, 1, in_features)
+            Output:
+                tuple (tensor, scalar tensor):
+                    - the first element is tensor of logits of the model for the input x. The shape is (batch_size, n_samples, out_features).
+                    - the second element is the KL divergence of the model weights sampled
+                      in the forward pass. It is a 0-dim tensor containing only one scalar.
+        '''
+
+        kl_divergence = 0
+
+        # Calculate W
+        weight_distribution = D.Normal(
+            loc=self.mu_weights, scale=F.softplus(self.rho_weights)
+        )
+        W = weight_distribution.sample((n_samples, ))
+        print(W.shape)
+
+        # Calculate weight contribution to KL divergence
+        kl_divergence += weight_distribution.log_prob(W).sum()
+        kl_divergence -= self.prior_distribution.log_prob(W).sum()
+
+        # Multiply input by W
+        out = torch.matmul(x, W.transpose(2, 1)).squeeze()
+        print(out.shape)
+
+        # Handle bias
+        if self.bias:
+            bias_distribution = D.Normal(
+                loc=self.mu_bias, scale=F.softplus(self.rho_bias)
+            )
+            b = bias_distribution.sample((n_samples, ))
+            print(b.shape)
+
+            # Add the bias
+            out += b
+
+            # Calculate bias contribution to KL divergence
+            kl_divergence += bias_distribution.log_prob(b).sum()
+            kl_divergence -= self.prior_distribution.log_prob(b).sum()
+
+        return out, kl_divergence
 
 
 def main():
@@ -97,13 +174,13 @@ def main():
         mixture_distribution=mixture_distribution, component_distribution=component_distribution
     )
     layer = VariationalLinear(
-        in_features=10000, out_features=1000, bias=True, prior_distribution=prior_distribution, nonlinearity="linear"
+        in_features=784, out_features=1200, bias=True, prior_distribution=prior_distribution, nonlinearity="linear"
     )
     
     for p in layer.parameters():
         print(p.shape)
 
-    x = torch.randn((256, 10000))
+    x = torch.randn((128, 784))
     with torch.no_grad():
         out, kl_divergence = layer(x)
     
@@ -139,6 +216,22 @@ def main():
     with torch.no_grad():
         out, kl_divergence = layer(x)
     print(kl_divergence) # Should be different this time
+
+
+    # Test with multiple samples
+    print("\nMultiple samples")
+    layer = layer = VariationalLinear(
+        in_features=784, out_features=1200, bias=True, prior_distribution=prior_distribution, nonlinearity="linear"
+    )
+
+    x = torch.randn((128, 1, 1, 784))
+    with torch.no_grad():
+        out, kl_divergence = layer(x, n_samples=5)
+    
+    print(out.shape)
+    print(out.mean(), out.std()) # Should be around 0 and 1
+
+    print(kl_divergence) # Initial KL divergence
     
 
 if __name__ == "__main__":
