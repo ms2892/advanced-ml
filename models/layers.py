@@ -138,23 +138,20 @@ class VariationalLinear(nn.Module):
             loc=self.mu_weights, scale=F.softplus(self.rho_weights)
         )
         W = weight_distribution.sample((n_samples, ))
-        print(W.shape)
 
         # Calculate weight contribution to KL divergence
         kl_divergence += weight_distribution.log_prob(W).sum()
         kl_divergence -= self.prior_distribution.log_prob(W).sum()
 
         # Multiply input by W
-        out = torch.matmul(x, W.transpose(2, 1)).squeeze()
-        print(out.shape)
+        out = torch.matmul(x, W.transpose(2, 1))
 
         # Handle bias
         if self.bias:
             bias_distribution = D.Normal(
                 loc=self.mu_bias, scale=F.softplus(self.rho_bias)
             )
-            b = bias_distribution.sample((n_samples, ))
-            print(b.shape)
+            b = bias_distribution.sample((n_samples, 1, ))
 
             # Add the bias
             out += b
@@ -220,7 +217,7 @@ def main():
 
     # Test with multiple samples
     print("\nMultiple samples")
-    layer = layer = VariationalLinear(
+    layer = VariationalLinear(
         in_features=784, out_features=1200, bias=True, prior_distribution=prior_distribution, nonlinearity="linear"
     )
 

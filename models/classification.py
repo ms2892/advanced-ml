@@ -1,7 +1,7 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
+
+from layers import VariationalLinear
 
 
 class Classification(nn.Module):
@@ -122,3 +122,73 @@ class Classification_Dropout(nn.Module):
         # Output Nodes
         output = self.out(intermediate)
         return output
+    
+
+class VariationalClassifier(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, prior_distribution):
+        super().__init__()
+
+        self.prior_distribution = prior_distribution
+
+        self.layers = nn.ModuleList([
+            VariationalLinear(in_features=input_dim, out_features=hidden_dim, prior_distribution=prior_distribution),
+            VariationalLinear(in_features=hidden_dim, out_features=hidden_dim, prior_distribution=prior_distribution),
+            VariationalLinear(in_features=hidden_dim, out_features=output_dim, prior_distribution=prior_distribution),
+        ])
+
+    
+    def forward(self, x, n_samples=1):
+        # Add extra singleton dimensions for the multiple sample case
+        if n_samples > 1: x = x.unsqueeze(1).unsqueeze(1)
+        
+        total_kl_divergence = 0 # 
+        for layer in self.layers:
+            x, kl_divergence = layer(x, n_samples=n_samples)
+            x = F.relu(x)
+
+            total_kl_divergence += kl_divergence
+        
+        if n_samples == 1:
+            x = x.unsqueeze(1)
+        else:
+            x = x.squeeze()
+
+        return x, total_kl_divergence
+
+
+def main():
+    import torch
+    import torch.distributions as D
+
+    p = 1/4
+    mixture_distribution = D.Categorical(probs=torch.tensor([p, 1 - p]))
+    component_distribution = D.Normal(loc=torch.zeros(2), scale=torch.tensor([0.1, 1]))
+    prior_distribution = D.MixtureSameFamily(
+        mixture_distribution=mixture_distribution, component_distribution=component_distribution
+    )
+
+    model = VariationalClassifier(input_dim=784, hidden_dim=800, output_dim=10, prior_distribution=prior_distribution)
+    
+    for p in model.parameters():
+        print(p.shape)
+
+    x = torch.randn((128, 784))
+    with torch.no_grad():
+        out, kl_divergence = model(x)
+    
+    print(out.shape)
+    print(kl_divergence)
+
+
+    # Test with multiple samples
+    print("\nMultiple samples")
+    with torch.no_grad():
+        out, kl_divergence = model(x, n_samples=5)
+    
+    print(out.shape)
+    print(kl_divergence)
+
+
+if __name__ == "__main__":
+    main()
+
