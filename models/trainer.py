@@ -282,6 +282,8 @@ class TrainModelWrapper:
         else:
             earlystop = None
 
+        self.model =self.model.to(device)
+
         # Training Loop
         for step, epoch in enumerate(range(1, self.num_epochs+1)):
             print('Epoch {}/{}'.format(epoch, self.num_epochs))
