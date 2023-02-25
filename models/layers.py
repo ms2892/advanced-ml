@@ -56,13 +56,17 @@ class VariationalLinear(nn.Module):
         self.prior_distribution = prior_distribution
 
 
-    def forward(self, x:torch.Tensor, n_samples=1):
+    def forward(self, x:torch.Tensor, n_samples=1, prune_weights=False, pruning_threshold=0.0):
         '''
             Calculates logits for the input x using "n_samples" samples of the weights.
 
             Args:
                 x: tensor of shape (batch_size, in_features) if n_samples = 1
                    tensor of shape (batch_size, 1, 1, in_features) if n_samples > 1
+                n_samples: how many times to sample the weights for the linear layer
+                prune_weights: boolean value indicating whether weight pruning should be applied.
+                               Defaults to False.
+                pruning_threshold: determines when to prune the weights
             Output:
                 tuple (tensor, scalar tensor):
                     - the first element is tensor of logits of the model for the input x.
@@ -72,15 +76,18 @@ class VariationalLinear(nn.Module):
                       in the forward pass. It is a 0-dim tensor containing only one scalar.
         '''
         if n_samples == 1:
-            return self.forward_single_sample(x)
+            return self.forward_single_sample(x, prune_weights=prune_weights, pruning_threshold=pruning_threshold)
         else:
-            return self.forward_multiple_samples(x, n_samples=n_samples)
+            return self.forward_multiple_samples(x, n_samples=n_samples, prune_weights=prune_weights, pruning_threshold=pruning_threshold)
 
 
-    def forward_single_sample(self, x:torch.Tensor):
+    def forward_single_sample(self, x:torch.Tensor, prune_weights=False, pruning_threshold=0.0):
         '''
             Args:
                 x: input tensor of size (batch_size, in_features)
+                prune_weights: boolean value indicating whether weight pruning should be applied.
+                               Defaults to False.
+                pruning_threshold: determines when to prune the weights
             Output:
                 tuple (tensor, scalar tensor):
                     - the first element is tensor of logits of the model for the input x. The shape is (batch_size, out_features).
@@ -91,10 +98,16 @@ class VariationalLinear(nn.Module):
         kl_divergence = 0
 
         # Calculate W
+        sigma_weights = F.softplus(self.rho_weights)
         weight_distribution = D.Normal(
-            loc=self.mu_weights, scale=F.softplus(self.rho_weights)
+            loc=self.mu_weights, scale=sigma_weights
         )
         W = weight_distribution.sample()
+        if prune_weights:
+            snr = self.mu_weights.abs() / sigma_weights
+            mask = snr > pruning_threshold
+            W[mask] = 0
+        print(f"W: {(W == 0).sum() / W.nelement()}")
 
         # Calculate weight contribution to KL divergence
         kl_divergence += weight_distribution.log_prob(W).sum()
@@ -105,25 +118,34 @@ class VariationalLinear(nn.Module):
 
         # Handle bias
         if self.bias:
+            sigma_bias = F.softplus(self.rho_bias)
             bias_distribution = D.Normal(
-                loc=self.mu_bias, scale=F.softplus(self.rho_bias)
+                loc=self.mu_bias, scale=sigma_bias
             )
             b = bias_distribution.sample()
-
-            # Add the bias
-            out += b
+            if prune_weights:
+                snr = self.mu_bias.abs() / sigma_bias
+                mask = snr > pruning_threshold
+                b[mask] = 0
+            print(f"b: {(b == 0).sum() / b.nelement()}")
 
             # Calculate bias contribution to KL divergence
             kl_divergence += bias_distribution.log_prob(b).sum()
             kl_divergence -= self.prior_distribution.log_prob(b).sum()
 
+            # Add the bias
+            out += b
+
         return out, kl_divergence
     
 
-    def forward_multiple_samples(self, x:torch.Tensor, n_samples):
+    def forward_multiple_samples(self, x:torch.Tensor, n_samples, prune_weights=False, pruning_threshold=0.0):
         '''
             Args:
                 x: input tensor of size (batch_size, 1, 1, in_features)
+                prune_weights: boolean value indicating whether weight pruning should be applied.
+                               Defaults to False.
+                pruning_threshold: determines when to prune the weights
             Output:
                 tuple (tensor, scalar tensor):
                     - the first element is tensor of logits of the model for the input x. The shape is (batch_size, n_samples, out_features).
@@ -134,10 +156,16 @@ class VariationalLinear(nn.Module):
         kl_divergence = 0
 
         # Calculate W
+        sigma_weights = F.softplus(self.rho_weights)
         weight_distribution = D.Normal(
-            loc=self.mu_weights, scale=F.softplus(self.rho_weights)
+            loc=self.mu_weights, scale=sigma_weights
         )
         W = weight_distribution.sample((n_samples, ))
+        if prune_weights:
+            snr = self.mu_weights.abs() / sigma_weights
+            mask = snr > pruning_threshold
+            W[:, mask] = 0
+        print(f"W: {(W == 0).sum() / W.nelement()}")
 
         # Calculate weight contribution to KL divergence
         kl_divergence += weight_distribution.log_prob(W).sum()
@@ -148,17 +176,25 @@ class VariationalLinear(nn.Module):
 
         # Handle bias
         if self.bias:
+            sigma_bias = F.softplus(self.rho_bias)
             bias_distribution = D.Normal(
-                loc=self.mu_bias, scale=F.softplus(self.rho_bias)
+                loc=self.mu_bias, scale=sigma_bias
             )
-            b = bias_distribution.sample((n_samples, 1, ))
-
-            # Add the bias
-            out += b
+            b = bias_distribution.sample((n_samples, ))
+            if prune_weights:
+                snr = self.mu_bias.abs() / sigma_bias
+                mask = snr > pruning_threshold
+                b[:, mask] = 0
+            b = b.unsqueeze(1)
+            print(f"b: {(b == 0).sum() / b.nelement()}")
+            
 
             # Calculate bias contribution to KL divergence
             kl_divergence += bias_distribution.log_prob(b).sum()
             kl_divergence -= self.prior_distribution.log_prob(b).sum()
+
+            # Add the bias
+            out += b
 
         return out, kl_divergence
 
