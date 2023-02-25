@@ -52,6 +52,9 @@ class TrainModelWrapper:
                                         0 - Regression
                                         1 - Binary Classification
                                         2 - MultiClass Classification
+                                        3 - Bayesian Regression
+                                        4 - Bayesian Binary Classification
+                                        5 - Bayesian MultiClass Classification
               }
 
             To pass these attributes to the TrainModelWrapper please pass it using the following syntax
@@ -253,6 +256,10 @@ class TrainModelWrapper:
             self.test_dataset, batch_size=self.batch_size, shuffle=True)
 
     def train(self):
+        
+        if self.c_flag in [3,4,5]:
+            return self.bnn_train()
+        
         # Mark the starting time
         start = time.time()
 
@@ -281,6 +288,8 @@ class TrainModelWrapper:
             earlystop = self.EarlyStop()
         else:
             earlystop = None
+
+        self.model = self.model.to(device)
 
         # Training Loop
         for step, epoch in enumerate(range(1, self.num_epochs+1)):
@@ -403,6 +412,119 @@ class TrainModelWrapper:
         _, preds = torch.max(pred, 1)
         correct_preds = preds.eq(label).sum()
         return correct_preds
+
+    def bnn_train(self):
+        start = time.time()
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        history = defaultdict(list)
+        scaler = amp.GradScaler()
+        n_accumulate = 4
+
+        dataloaders = {'train': self.train_loader,
+                       'val': self.val_loader, 'test': self.test_loader}
+        dataset_sizes = {'train': len(
+            self.train_dataset), 'val': self.val_dataset, 'test': self.test_dataset}
+
+        print("The tensorboard model name corresponding to this model is",
+              self.model_name)
+
+        if self.es_flag:
+            earlystop = self.EarlyStop()
+        else:
+            earlystop = None
+
+        for step, epoch in enumerate(range(1, self.num_epochs+1)):
+            print('Epoch {}/{}'.format(epoch, self.num_epochs))
+            print('-'*10)
+
+            for phase in ['train', 'val', 'test']:
+                if (phase == 'train'):
+                    self.model.train()
+                else:
+                    self.model.eval()
+                running_loss = 0.0
+                running_corr = 0.0
+
+                for batch_index, inputs, label in tqdm(enumerate(dataloaders[phase])):
+                    inputs = inputs.to(device)
+                    label = label.to(device)
+
+                    with torch.set_grad_enabled(phase == 'train'):
+                        with amp.autocast(enabled=True):
+                            output, kl_divergence = self.model(inputs)
+                            weights = self.minibatch_weight(
+                                batch_index, self.batch_size, dataset_sizes[phase])
+                            loss = self.elbo(
+                                output, label, weights, kl_divergence)
+
+                        if phase == 'train':
+                            scaler.scale(loss).backward()
+
+                        # Zero Grad
+                        if phase == 'train' and (step+1) % n_accumulate == 0:
+                            scaler.step(self.optimizer)
+                            scaler.update()
+                            if self.scheduler:
+                                self.scheduler.step()
+                            self.optimizer.zero_grad()
+
+                    if self.c_flag == 4:
+                        running_corr += self.binary_correct(
+                            torch.mean(output, 1), label)
+                    elif self.c_flag == 5:
+                        running_corr += self.multi_correct(
+                            torch.mean(output, 1), label)
+
+                    running_loss += loss.item()*input.size(0)
+                epoch_loss = running_loss/dataset_sizes[phase]
+                if self.c_flag != 0:
+                    epoch_acc = running_corr/dataset_sizes[phase]
+
+                self.writer.add_scalar(phase+'_loss', epoch_loss, epoch)
+                if self.c_flag != 0:
+                    self.writer.add_scalar(phase+'_acc', epoch_acc, epoch)
+
+                history[phase+' loss'].append(epoch_loss)
+                print('{} Loss: {:.4f}'.format(phase, epoch_loss))
+                if self.c_flag != 0:
+                    history[phase+' acc'].append(epoch_acc)
+                    print('{} Acc: {:.4f}'.format(phase, epoch_acc))
+
+                if self.es_flag and phase == 'test':
+                    if self.c_flag == 0:
+
+                        if earlystop.early_stop(epoch_loss):
+                            end = time.time()
+                            time_elapsed = end-start
+                            print('Early Stopping Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
+                                time_elapsed//3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
+                            return self.model, history
+                    else:
+                        if earlystop.early_stop(epoch_acc):
+                            end = time.time()
+                            time_elapsed = end-start
+                            print('Early Stopping Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
+                                time_elapsed//3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
+                            return self.model, history
+            print("")
+        end = time.time()
+        time_elapsed = end-start
+        print('Early Stopping Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
+            time_elapsed//3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
+        return self.model, history
+
+    def minibatch_weight(self, batch_index, batch_size, data_size):
+        num_batches = int(data_size / batch_size)
+        return 2**(num_batches-batch_index)/(2**num_batches-1)
+
+    def elbo(self, pred, label, weigths, kl_div):
+        loss = 0
+        for i in range(label.shape[0]):
+            temp_label = label[i, 0]*torch.ones((pred.shape[1], 1))
+            loss += self.criterion(pred[i, :, :], temp_label)
+            loss += kl_div*weigths
+
+        return loss / pred.shape[1]
 
     class EarlyStop:
         '''
