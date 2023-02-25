@@ -160,7 +160,7 @@ class VariationalLinear(nn.Module):
             kl_divergence += bias_distribution.log_prob(b).sum()
             kl_divergence -= self.prior_distribution.log_prob(b).sum()
 
-        return out, kl_divergence
+        return out, kl_divergence / n_samples
 
 
 def main():
@@ -174,8 +174,8 @@ def main():
         in_features=784, out_features=1200, bias=True, prior_distribution=prior_distribution, nonlinearity="linear"
     )
     
-    for p in layer.parameters():
-        print(p.shape)
+    # for p in layer.parameters():
+    #     print(p.shape)
 
     x = torch.randn((128, 784))
     with torch.no_grad():
@@ -212,7 +212,7 @@ def main():
 
     with torch.no_grad():
         out, kl_divergence = layer(x)
-    print(kl_divergence) # Should be different this time
+    print(kl_divergence) # Should be different from initial this time
 
 
     # Test with multiple samples
@@ -228,7 +228,13 @@ def main():
     print(out.shape)
     print(out.mean(), out.std()) # Should be around 0 and 1
 
-    print(kl_divergence) # Initial KL divergence
+    print(kl_divergence) # Should be around the same as initial
+
+    # 2 samples
+    with torch.no_grad():
+        out, kl_divergence = layer(x, n_samples=2)
+    
+    print(kl_divergence) # Should be around the same as initial
     
 
 if __name__ == "__main__":
