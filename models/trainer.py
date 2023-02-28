@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import time
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from tqdm import tqdm
 import logging
 from collections import defaultdict
@@ -465,7 +466,7 @@ class TrainModelWrapper:
                     with torch.set_grad_enabled(phase == 'train'):
                         output, kl_divergence = self.model(inputs)
                         loss,nll = self.criterion(output,label,kl_divergence,dataset_size=dataset_sizes[phase],batch_index=batch_index,weight_type='uniform')
-                        running_nll +=nll
+                        running_nll +=nll*input.size(0)
                         if phase == 'train':
                             loss.backward()
 
@@ -475,13 +476,16 @@ class TrainModelWrapper:
                             if self.scheduler:
                                 self.scheduler.step()
                             self.optimizer.zero_grad()
+                    if self.c_flag==4:
+                        probs = F.sigmoid(output)
+                        probs = torch.mean(output,dim=1)
+                        running_corr+=self.binary_correct(probs,label)
 
-                    # if self.c_flag == 4:
-                    #     running_corr += self.binary_correct(
-                    #         torch.mean(output, 1), label)
-                    # elif self.c_flag == 5:
-                    #     running_corr += self.multi_correct(
-                    #         torch.mean(output, 1), label)
+                    elif self.c_flag==5:
+                        probs = F.softmax(output,dim=-1)
+                        probs = torch.mean(probs,dim=1)
+                        
+                        running_corr+= self.multi_correct(probs,label)
 
                     running_loss += loss.item()*input.size(0)
                 epoch_loss = running_loss/dataset_sizes[phase]
