@@ -455,8 +455,9 @@ class TrainModelWrapper:
                     self.model.train()
                 else:
                     self.model.eval()
-                epoch_loss = 0.0
+                epoch_loss = 0.0 # ELBO scaled by 1/C
                 running_corr = 0.0
+                epoch_elbo = 0.0 
                 epoch_kl = 0.0
                 epoch_nll = 0.0
 
@@ -495,7 +496,8 @@ class TrainModelWrapper:
                     # We don't need to scale by batch size since KL is not dependent on batch size,
                     # but we want to remove scaling by dataset size because we only use that to
                     # prevent exploding gradients
-                    epoch_loss += loss.item() * dataset_sizes[phase]
+                    epoch_loss += loss.item()
+                    epoch_elbo += loss.item() * dataset_sizes[phase]
                     weighted_kl = (loss - nll) * dataset_sizes[phase]
                     epoch_kl += weighted_kl
                     epoch_nll += nll.item() * dataset_sizes[phase]
@@ -504,6 +506,7 @@ class TrainModelWrapper:
                     epoch_acc = running_corr/dataset_sizes[phase]
 
                 self.writer.add_scalar(phase+'_loss', epoch_loss, epoch)
+                self.writer.add_scalar(phase+'_elbo', epoch_elbo, epoch)
                 self.writer.add_scalar(phase+'_kl', epoch_kl, epoch)
                 self.writer.add_scalar(phase+'_nll', epoch_nll, epoch)
                 if self.c_flag != 0:
