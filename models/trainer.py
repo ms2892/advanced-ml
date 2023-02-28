@@ -455,9 +455,10 @@ class TrainModelWrapper:
                     self.model.train()
                 else:
                     self.model.eval()
-                running_loss = 0.0
+                epoch_loss = 0.0
                 running_corr = 0.0
-                running_nll = 0.0
+                epoch_kl = 0.0
+                epoch_nll = 0.0
 
                 for batch_index, inputs, label in tqdm(enumerate(dataloaders[phase])):
                     inputs = inputs.to(device)
@@ -465,8 +466,12 @@ class TrainModelWrapper:
 
                     with torch.set_grad_enabled(phase == 'train'):
                         output, kl_divergence = self.model(inputs)
-                        loss,nll = self.criterion(output,label,kl_divergence,dataset_size=dataset_sizes[phase],batch_index=batch_index,weight_type='uniform')
-                        running_nll +=nll*input.size(0)
+                        loss, nll = self.criterion(
+                            output, label, kl_divergence,
+                            dataset_size=dataset_sizes[phase],
+                            batch_index=batch_index, weight_type='uniform'
+                        )
+
                         if phase == 'train':
                             loss.backward()
 
@@ -487,14 +492,20 @@ class TrainModelWrapper:
                         
                         running_corr+= self.multi_correct(probs,label)
 
-                    running_loss += loss.item()*input.size(0)
-                epoch_loss = running_loss/dataset_sizes[phase]
-                epoch_nll = running_nll / dataset_sizes[phase] 
+                    # We don't need to scale by batch size since KL is not dependent on batch size,
+                    # but we want to remove scaling by dataset size because we only use that to
+                    # prevent exploding gradients
+                    epoch_loss += loss.item() * dataset_sizes[phase]
+                    weighted_kl = (loss - nll) * dataset_sizes[phase]
+                    epoch_kl += weighted_kl
+                    epoch_nll += nll.item() * dataset_sizes[phase]
+                
                 if self.c_flag != 0:
                     epoch_acc = running_corr/dataset_sizes[phase]
 
                 self.writer.add_scalar(phase+'_loss', epoch_loss, epoch)
-                self.writer.add_scalar(phase+'_nll',epoch_nll,epoch)
+                self.writer.add_scalar(phase+'_kl', epoch_kl, epoch)
+                self.writer.add_scalar(phase+'_nll', epoch_nll, epoch)
                 if self.c_flag != 0:
                     self.writer.add_scalar(phase+'_acc', epoch_acc, epoch)
 
