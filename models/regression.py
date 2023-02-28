@@ -4,6 +4,31 @@ import torch.nn.functional as F
 import numpy as np
 
 
+class RegressionELBO(nn.Module):
+    def __init__(self):
+        super(RegressionELBO, self).__init__()
+
+    def forward(self, output, label, kl_div, dataset_size=60000, batch_index=-1, weight_type='uniform'):
+        batch_size = output.shape[0]
+        M = dataset_size // batch_size
+        if weight_type == 'uniform':
+            kl_weight = 1 / M
+        else:
+            if batch_index == -1:
+                raise Exception("Batch Index Not specified while getting Loss")
+            kl_weight = 2**(M-batch_index)/(2**M-1)
+        nll = self.get_neg_log_lik(output, label)
+        elbo = kl_weight*kl_div/dataset_size + nll
+        return elbo, nll
+
+    def get_neg_log_lik(y_pred, y_true):
+        sigma=1
+        batched_nll = (y_pred - y_true.unsqueeze(-1))**2/(2*sigma**2) + torch.log(torch.tensor(sigma))
+        return (batched_nll.mean(dim=0)).mean(dim=0)
+        
+
+
+
 class Regression(nn.Module):
     '''
         Class:

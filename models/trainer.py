@@ -311,10 +311,8 @@ class TrainModelWrapper:
                     # Forward Pass
 
                     with torch.set_grad_enabled(phase == 'train'):
-                        with amp.autocast(enabled=True):
-                            output = self.model(inputs)
-                            loss = self.criterion(output, label)
-                            loss = loss/n_accumulate
+                        output = self.model(inputs)
+                        loss = self.criterion(output, label)
 
                         # Backward Pass
 
@@ -322,12 +320,11 @@ class TrainModelWrapper:
                             scaler.scale(loss).backward()
 
                         # Zero grad
-                        if phase == 'train' and (step+1) % n_accumulate == 0:
-                            scaler.step(self.optimizer)
-                            scaler.update()
-                            if self.scheduler:
-                                self.scheduler.step()
-                            self.optimizer.zero_grad()
+                        if phase == 'train':
+                            self.optimizer.step()
+                        if self.scheduler:
+                            self.scheduler.step()
+                        self.optimizer.zero_grad()
 
                     # Classification Metric Calculation
                     if self.c_flag == 1:
@@ -414,11 +411,26 @@ class TrainModelWrapper:
         return correct_preds
 
     def bnn_train(self):
+        '''
+            Method:
+                This method trains the BNN based on the custom loss function and KL weight distribution
+                
+            Args:
+                None
+            
+            Output:
+                (model object)  :   returns the final instance of the model
+                (dict)          :   contains information of all the performance metrics
+        '''
+        
+        # Mark the starting time of the training
         start = time.time()
+        
+        # Check whether gpu is present or not
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Empty 
         history = defaultdict(list)
-        scaler = amp.GradScaler()
-        n_accumulate = 4
 
         dataloaders = {'train': self.train_loader,
                        'val': self.val_loader, 'test': self.test_loader}
@@ -444,43 +456,41 @@ class TrainModelWrapper:
                     self.model.eval()
                 running_loss = 0.0
                 running_corr = 0.0
+                running_nll = 0.0
 
                 for batch_index, inputs, label in tqdm(enumerate(dataloaders[phase])):
                     inputs = inputs.to(device)
                     label = label.to(device)
 
                     with torch.set_grad_enabled(phase == 'train'):
-                        with amp.autocast(enabled=True):
-                            output, kl_divergence = self.model(inputs)
-                            weights = self.minibatch_weight(
-                                batch_index, self.batch_size, dataset_sizes[phase])
-                            loss = self.elbo(
-                                output, label, weights, kl_divergence)
-
+                        output, kl_divergence = self.model(inputs)
+                        loss,nll = self.criterion(output,label,kl_divergence,dataset_size=dataset_sizes[phase],batch_index=batch_index,weight_type='uniform')
+                        running_nll +=nll
                         if phase == 'train':
-                            scaler.scale(loss).backward()
+                            loss.backward()
 
                         # Zero Grad
-                        if phase == 'train' and (step+1) % n_accumulate == 0:
-                            scaler.step(self.optimizer)
-                            scaler.update()
+                        if phase == 'train':
+                            self.optimizer.step()
                             if self.scheduler:
                                 self.scheduler.step()
                             self.optimizer.zero_grad()
 
-                    if self.c_flag == 4:
-                        running_corr += self.binary_correct(
-                            torch.mean(output, 1), label)
-                    elif self.c_flag == 5:
-                        running_corr += self.multi_correct(
-                            torch.mean(output, 1), label)
+                    # if self.c_flag == 4:
+                    #     running_corr += self.binary_correct(
+                    #         torch.mean(output, 1), label)
+                    # elif self.c_flag == 5:
+                    #     running_corr += self.multi_correct(
+                    #         torch.mean(output, 1), label)
 
                     running_loss += loss.item()*input.size(0)
                 epoch_loss = running_loss/dataset_sizes[phase]
+                epoch_nll = running_nll / dataset_sizes[phase] 
                 if self.c_flag != 0:
                     epoch_acc = running_corr/dataset_sizes[phase]
 
                 self.writer.add_scalar(phase+'_loss', epoch_loss, epoch)
+                self.writer.add_scalar(phase+'_nll',epoch_nll,epoch)
                 if self.c_flag != 0:
                     self.writer.add_scalar(phase+'_acc', epoch_acc, epoch)
 
@@ -521,8 +531,8 @@ class TrainModelWrapper:
         loss = 0
         for i in range(label.shape[0]):
             temp_label = label[i, 0]*torch.ones((pred.shape[1], 1))
-            loss += self.criterion(pred[i, :, :], temp_label)
-            loss += kl_div*weigths
+            loss += self.criterion(pred[i, :, :], temp_label)           # Negative Log Likelihood
+        loss += kl_div*weigths
 
         return loss / pred.shape[1]
 
