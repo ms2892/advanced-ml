@@ -148,7 +148,7 @@ class Classification_Dropout(nn.Module):
         return output
 
 
-class VariationalClassifier(nn.Module):
+class VariationalMLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, prior_distribution):
         super().__init__()
 
@@ -195,9 +195,8 @@ def main():
         mixture_distribution=mixture_distribution, component_distribution=component_distribution
     )
 
-    model = VariationalClassifier(
-        input_dim=784, hidden_dim=800, output_dim=10, prior_distribution=prior_distribution)
-
+    model = VariationalMLP(input_dim=784, hidden_dim=800, output_dim=10, prior_distribution=prior_distribution)
+    
     for p in model.parameters():
         print(p.shape)
 
