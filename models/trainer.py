@@ -136,8 +136,7 @@ class TrainModelWrapper:
 
         # Check if model name is present in the configuration
         if 'model_name' in kwargs:
-            curr_dt = str(datetime.now())
-            curr_dt = re.sub('[^0-9]', '', curr_dt)
+            curr_dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
             self.model_name = kwargs['model_name'] + '_'+curr_dt
         else:
             # Raise Error if model name is missing
@@ -304,22 +303,22 @@ class TrainModelWrapper:
                     # Forward Pass
 
                     with torch.set_grad_enabled(phase == 'train'):
-                        with amp.autocast(enabled=True):
-                            output = self.model(inputs)
-                            loss = self.criterion(output, label)
-                            loss = loss/n_accumulate
+                        # with amp.autocast(enabled=True):
+                        output = self.model(inputs)
+                        loss = self.criterion(output, label)
 
                         # Backward Pass
 
                         if phase == 'train':
-                            scaler.scale(loss).backward()
+                            loss.backward()
 
                         # Zero grad
-                        if phase == 'train' and (step+1) % n_accumulate == 0:
-                            scaler.step(self.optimizer)
-                            scaler.update()
-                            if self.scheduler:
-                                self.scheduler.step()
+                        if phase == 'train':
+                            # scaler.step(self.optimizer)
+                            self.optimizer.step()
+                            # scaler.update()
+                            # if self.scheduler:
+                                # self.scheduler.step()
                             self.optimizer.zero_grad()
 
                     # Classification Metric Calculation
