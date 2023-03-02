@@ -37,25 +37,27 @@ class TrainModelWrapper:
             This class takes in a dictionary as an attribute. The format of the dictionary is as follows
 
             args = {
-                'model'         : model (object),
-                'model_name'    : model name (string)
-                'train_dataset' : training dataset (object),
-                'criterion'     : loss function (object),
-                'batch_size'    : batch size (int),
-                'optimizer'     : optimizer (object),
-                'scheduler'     : scheduler (object) (optional),
-                'es_flag'       : Boolean value to decide whether to use early stopping or not. (Default = False)
-                'num_epochs'    : number of epochs (int),   
-                'val_dataset'   : Validation Dataset(object)
-                'test_dataset'  : Test Dataset (object)
-                'mode'          : Boolean value to decide whether this training is a classification training or not. (Default = 0) 
-                                      Possible Values [0,1,2] -> 
-                                        0 - Regression
-                                        1 - Binary Classification
-                                        2 - MultiClass Classification
-                                        3 - Bayesian Regression
-                                        4 - Bayesian Binary Classification
-                                        5 - Bayesian MultiClass Classification
+                'model'             : model (object),
+                'model_name'        : model name (string)
+                'train_dataset'     : training dataset (object),
+                'criterion'         : loss function (object),
+                'batch_size'        : batch size (int),
+                'optimizer'         : optimizer (object),
+                'scheduler'         : scheduler (object) (optional),
+                'es_flag'           : Boolean value to decide whether to use early stopping or not. (Default = False)
+                'num_epochs'        : number of epochs (int),   
+                'val_dataset'       : Validation Dataset(object)
+                'test_dataset'      : Test Dataset (object)
+                'uniform_kl_weight' : whether weigthing type for the KL divergence is uniform.  (Default = True)
+                'scale_const'       : normalizing constant to prevent exploding gradients. (Default = 1)
+                'mode'              : Boolean value to decide whether this training is a classification training or not. (Default = 0) 
+                                        Possible Values [0,1,2] -> 
+                                            0 - Regression
+                                            1 - Binary Classification
+                                            2 - MultiClass Classification
+                                            3 - Bayesian Regression
+                                            4 - Bayesian Binary Classification
+                                            5 - Bayesian MultiClass Classification
               }
 
             To pass these attributes to the TrainModelWrapper please pass it using the following syntax
@@ -236,6 +238,14 @@ class TrainModelWrapper:
 
             # Set to False if flag is not present
             self.es_flag = False
+        
+        self.scale_const = 1 # set the default
+        if "scale_const" in kwargs:
+            self.scale_const = kwargs["scale_const"] # override default if needed
+        
+        self.uniform_kl_weight = True # set the default
+        if "uniform_kl_weight" in kwargs:
+            self.uniform_kl_weight = kwargs["uniform_kl_weight"] # override default if needed
 
         # Check the mode of the training
         if 'mode' in kwargs:
@@ -455,20 +465,28 @@ class TrainModelWrapper:
                     self.model.train()
                 else:
                     self.model.eval()
-                running_loss = 0.0
+                epoch_loss = 0.0 # ELBO scaled by 1/scale_const
                 running_corr = 0.0
-                running_nll = 0.0
+                epoch_elbo = 0.0 
+                epoch_kl = 0.0
+                epoch_nll = 0.0
 
-                for batch_index, inputs, label in tqdm(enumerate(dataloaders[phase])):
+                for batch_index, inputs, labels in tqdm(enumerate(dataloaders[phase])):
                     inputs = inputs.to(device)
-                    label = label.to(device)
+                    labels = labels.to(device)
 
                     with torch.set_grad_enabled(phase == 'train'):
-                        output, kl_divergence = self.model(inputs)
-                        loss,nll = self.criterion(output,label,kl_divergence,dataset_size=dataset_sizes[phase],batch_index=batch_index,weight_type='uniform')
-                        running_nll +=nll*input.size(0)
+                        outputs, kl_divergence = self.model(inputs)
+                        kl_weight = self._get_kl_weight(
+                            M=dataset_sizes[phase] // outputs.shape[0],
+                            batch_index=batch_index, uniform_kl_weight=self.uniform_kl_weight,
+                        )
+                        loss, nll = self.criterion(
+                            outputs, labels, kl_divergence, kl_weight,
+                        )
+
                         if phase == 'train':
-                            loss.backward()
+                            (loss / self.scale_const).backward()
 
                         # Zero Grad
                         if phase == 'train':
@@ -476,25 +494,30 @@ class TrainModelWrapper:
                             if self.scheduler:
                                 self.scheduler.step()
                             self.optimizer.zero_grad()
-                    if self.c_flag==4:
-                        probs = F.sigmoid(output)
-                        probs = torch.mean(output,dim=1)
-                        running_corr+=self.binary_correct(probs,label)
+                    if self.c_flag == 4:
+                        probs = F.sigmoid(outputs)
+                        probs = torch.mean(outputs, dim=1)
+                        running_corr += self.binary_correct(probs, labels)
 
-                    elif self.c_flag==5:
-                        probs = F.softmax(output,dim=-1)
-                        probs = torch.mean(probs,dim=1)
+                    elif self.c_flag == 5:
+                        probs = F.softmax(outputs, dim=-1)
+                        probs = torch.mean(probs, dim=1)
                         
-                        running_corr+= self.multi_correct(probs,label)
+                        running_corr+= self.multi_correct(probs, labels)
 
-                    running_loss += loss.item()*input.size(0)
-                epoch_loss = running_loss/dataset_sizes[phase]
-                epoch_nll = running_nll / dataset_sizes[phase] 
+                    epoch_loss += loss.item() / self.scale_const
+                    epoch_elbo += loss.item()
+                    weighted_kl = (loss - nll).item()
+                    epoch_kl += weighted_kl
+                    epoch_nll += nll.item()
+                
                 if self.c_flag != 0:
                     epoch_acc = running_corr/dataset_sizes[phase]
 
                 self.writer.add_scalar(phase+'_loss', epoch_loss, epoch)
-                self.writer.add_scalar(phase+'_nll',epoch_nll,epoch)
+                self.writer.add_scalar(phase+'_elbo', epoch_elbo, epoch)
+                self.writer.add_scalar(phase+'_kl', epoch_kl, epoch)
+                self.writer.add_scalar(phase+'_nll', epoch_nll, epoch)
                 if self.c_flag != 0:
                     self.writer.add_scalar(phase+'_acc', epoch_acc, epoch)
 
@@ -527,18 +550,21 @@ class TrainModelWrapper:
             time_elapsed//3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
         return self.model, history
 
-    def minibatch_weight(self, batch_index, batch_size, data_size):
-        num_batches = int(data_size / batch_size)
-        return 2**(num_batches-batch_index)/(2**num_batches-1)
 
-    def elbo(self, pred, label, weigths, kl_div):
-        loss = 0
-        for i in range(label.shape[0]):
-            temp_label = label[i, 0]*torch.ones((pred.shape[1], 1))
-            loss += self.criterion(pred[i, :, :], temp_label)           # Negative Log Likelihood
-        loss += kl_div*weigths
+    def _get_kl_weight(self, M, batch_index=-1, uniform_kl_weight=True):
+        '''
+            M: number of batches
+        '''
+        
+        kl_weight = 1 / M
+        if not uniform_kl_weight:
+            if batch_index == -1:
+                raise Exception("Batch Index Not specified while getting Loss")
+            
+            kl_weight = 2**(M - batch_index) / (2**M - 1)
+        
+        return kl_weight
 
-        return loss / pred.shape[1]
 
     class EarlyStop:
         '''

@@ -8,24 +8,23 @@ class CrossEntropyELBO(nn.Module):
     def __init__(self):
         super(CrossEntropyELBO, self).__init__()
 
-    def forward(self, output, label, kl_div, dataset_size=60000, batch_index=-1, weight_type='uniform'):
-        batch_size = output.shape[0]
-        M = dataset_size // batch_size
-        if weight_type == 'uniform':
-            kl_weight = 1 / M
-        else:
-            if batch_index == -1:
-                raise Exception("Batch Index Not specified while getting Loss")
-            kl_weight = 2**(M-batch_index)/(2**M-1)
-        nll = self.get_neg_log_lik(output, label)
-        elbo = kl_weight*kl_div/dataset_size+ nll
+    def forward(self, outputs, labels, kl_divergence, kl_weight):
+        nll = self._get_neg_log_lik(y_pred=outputs, y_true=labels)
+
+        elbo = kl_weight * kl_divergence + nll
+        
         return elbo, nll
 
-    def get_neg_log_lik(y_pred, y_true):
+
+    def _get_neg_log_lik(y_pred, y_true):
         n_samples = y_pred.shape[1]
 
-        out = F.cross_entropy(y_pred.transpose(
-            2, 1), y_true.unsqueeze(-1).repeat(repeats=(1, n_samples)), reduction="none")
+        out = F.cross_entropy(
+            y_pred.transpose(2, 1),
+            y_true.unsqueeze(-1).repeat(repeats=(1, n_samples)),
+            reduction="none"
+        )
+
         return out.mean(dim=0).mean(dim=0)
 
 
