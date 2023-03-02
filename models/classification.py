@@ -25,7 +25,7 @@ class CrossEntropyELBO(nn.Module):
             reduction="none"
         )
 
-        return out.mean(dim=0).mean(dim=0)
+        return out.sum(dim=0).mean(dim=0)
 
 
 class Classification(nn.Module):
