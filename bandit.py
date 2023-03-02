@@ -44,7 +44,6 @@ class AgentBandit:
         train() -> Model object, history (dictionary):
             This method returns the trained model and the history of the results in a dictionary.
             Depending on the mode of training, the history will contain it's respective metrics.
-
     """
 
     def __init__(self, **kwargs):
@@ -249,19 +248,21 @@ class AgentBandit:
             self.model.train()
             self.optimizer.zero_grad()
             train_idx = mbatch_idx[
-                idx * self.batch_size : idx * (1 + self.batch_size) + 1
+                idx * self.batch_size : (idx + 1) * self.batch_size + 1
             ]
+
             contents = self.context_buffer[train_idx, :]
             actions = self.action_buffer[train_idx, :]
             context_batch = (
-                torch.tensor(np.concatenate((contents, actions), axis=1).reshape(1, -1))
+                torch.tensor(np.concatenate((contents, actions), axis=1))
                 .double()
                 .to(device)
             )
-            label_batch = torch.tensor(self.label_buffer[mbatch_idx]).to(device)
+            label_batch = torch.tensor(self.label_buffer[train_idx]).to(device)
 
             pred_r = self.model(context_batch)
-            print("Minibatch prediction has shape", pred_r.shape)
+            print("pred", pred_r.shape)
+
             loss = self.criterion(pred_r, label_batch)
             loss.backward()
             self.optimizer.step()
