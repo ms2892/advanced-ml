@@ -9,11 +9,12 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.cuda import amp
 from datetime import datetime
 import re
-
+from models.model_utils import *
 
 # Imports
 #===========================#
 
+hyper = BBB_Hyper()
 
 # Logging Configuration - Defines the format and the severity of the logs
 logging.basicConfig(
@@ -232,6 +233,11 @@ class TrainModelWrapper:
             # Set to False if flag is not present
             self.es_flag = False
 
+        if 'samples' in kwargs:
+            self.samples = kwargs['samples']
+        else:
+            self.samples=1
+        
         # Check the mode of the training
         if 'mode' in kwargs:
             self.c_flag = kwargs['mode']
@@ -370,6 +376,117 @@ class TrainModelWrapper:
         # End the training and return the model
         end = time.time()
         time_elapsed = end - start
+        print('Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
+            time_elapsed // 3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
+        return self.model, history
+
+    def bnn_train(self):
+        start = time.time()
+
+        # Check the device
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        # history of the results
+        history = defaultdict(list)
+
+        # scaler to help mitigate precision issues between CPU and GPU
+        scaler = amp.GradScaler()
+        n_accumulate = 4
+
+        # Define train and val datasets
+        dataloaders = {'train': self.train_loader,
+                       'val': self.val_loader, 'test': self.test_loader}
+        dataset_sizes = {'train': len(self.train_dataset), 'val': len(
+            self.val_dataset), 'test': len(self.test_dataset)}
+
+        # Notify the model name
+        print("The tensorboard model name corresponding to this model is",
+              self.model_name)
+
+        # Create the early stopping checkpoint class
+        if self.es_flag:
+            earlystop = self.EarlyStop()
+        else:
+            earlystop = None
+
+        self.model =self.model.to(device)
+        
+        for step,epoch in enumerate(range(1,self.num_epochs+1)):
+            print('Epoch {}/{}'.format(epoch, self.num_epochs))
+            print('-'*10)
+
+            for phase in ['train', 'val', 'test']:
+                if (phase == 'train'):
+                    self.model.train()
+                else:
+                    self.model.eval()
+                running_loss = 0.0
+                running_corr = 0.0
+                running_kl = 0.0
+                M = len(dataloaders[phase])
+                for batch_id,(inputs, label) in tqdm(enumerate(dataloaders[phase])):
+                    inputs = inputs.to(device)
+                    label = label.to(device)
+                    if phase =='train':
+                        self.model.zero_grad()
+                        beta = 2**(M-(batch_id+1))/(2**M-1)
+                        l_pw,l_qw,l_likelihood = probs(self.model,hyper,inputs,label)
+                        # print(l_pw,l_qw,l_likelihood)
+                        # temp=input()
+                        loss = ELBO(l_pw,l_qw,l_likelihood,beta)/50
+                        # print(loss)
+                        # temp=input()
+                        loss.backward()
+                        self.optimizer.step()
+                        running_loss+=loss.item()*inputs.size(0)
+                    else:
+                        if self.samples == 1:
+                            output = self.model(inputs,infer= True)
+                        else:
+                            output = self.model(inputs)
+                            for i in range(self.samples-1):
+                                output+=self.model(inputs)
+                        predict = output.data.max(1)[1]
+                        acc = predict.eq(label.data).cpu().sum().item()
+                        running_corr+= acc
+                epoch_loss = running_loss/dataset_sizes[phase]
+                if self.c_flag != 0:
+                    epoch_acc = running_corr/dataset_sizes[phase]
+                # Add metric to Tensorboard
+                self.writer.add_scalar(phase+'_loss', epoch_loss, epoch)
+                if self.c_flag > 3:
+                    self.writer.add_scalar(phase+'_acc', epoch_acc, epoch)
+                history[phase + ' loss'].append(epoch_loss)
+                print('{} Loss: {:.4f}'.format(phase, epoch_loss))
+                if self.c_flag >3:
+                    history[phase+' acc'].append(epoch_acc)
+                    print('{} Acc: {:.4f}'.format(phase, epoch_acc))
+
+                # Perform Early Stopping
+                if self.es_flag and phase == 'test':
+                    if self.c_flag == 0:
+                        # Regression metric
+                        if earlystop.early_stop(epoch_loss):
+
+                            # If needs to stop training then finalize the training and return the model
+                            end = time.time()
+                            time_elapsed = end - start
+                            print('Early Stopping Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
+                                time_elapsed // 3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
+                            return self.model, history
+                    else:
+                        # Classification Metric
+                        if earlystop.early_stop(epoch_acc):
+
+                            # If needs to stop training then finalize the training and return the model
+                            end = time.time()
+                            time_elapsed = end - start
+                            print('Early Stopping Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
+                                time_elapsed // 3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
+                            return self.model, history
+            print("")
+        end = time.time()
+        time_elapsed = end-start
         print('Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
             time_elapsed // 3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
         return self.model, history

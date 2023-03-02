@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from models.layers import VariationalLayer
 
 
 class Classification(nn.Module):
@@ -126,3 +127,27 @@ class Classification_Dropout(nn.Module):
         # Output Nodes
         output = self.out(intermediate)
         return output
+
+
+class VariationalModel(nn.Module):
+    def __init__(self, n_input, n_ouput, hyper):
+        super(VariationalModel, self).__init__()
+
+        self.n_input = n_input
+        self.layers = nn.ModuleList([])
+        self.layers.append(VariationalLayer(n_input, hyper.hidden_units, hyper))
+        self.layers.append(VariationalLayer(hyper.hidden_units, hyper.hidden_units, hyper))
+        self.layers.append(VariationalLayer(hyper.hidden_units, n_ouput, hyper))
+
+    def forward(self, data, infer=False):
+        output = F.relu(self.layers[0](data.view(-1, self.n_input), infer))
+        output = F.relu(self.layers[1](output, infer))
+        output = F.softmax(self.layers[2](output, infer), dim=1)
+        return output
+
+    def get_lpw_lqw(self):
+        lpw = self.layers[0].lpw + self.layers[1].lpw + self.layers[2].lpw
+        lqw = self.layers[0].lqw + self.layers[1].lqw + self.layers[2].lqw
+        return lpw, lqw
+
+    
