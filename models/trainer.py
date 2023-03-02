@@ -50,8 +50,9 @@ class TrainModelWrapper:
                 'test_dataset'      : Test Dataset (object)
                 'uniform_kl_weight' : whether weigthing type for the KL divergence is uniform.  (Default = True)
                 'scale_const'       : normalizing constant to prevent exploding gradients. (Default = 1)
+                'n_samples'         : number of weight samples to be used in the forward pass for BNN models (Default = 1)
                 'mode'              : Boolean value to decide whether this training is a classification training or not. (Default = 0) 
-                                        Possible Values [0,1,2] -> 
+                                        Possible Values [0,1,2,3,4,5] -> 
                                             0 - Regression
                                             1 - Binary Classification
                                             2 - MultiClass Classification
@@ -142,9 +143,8 @@ class TrainModelWrapper:
 
         # Check if model name is present in the configuration
         if 'model_name' in kwargs:
-            curr_dt = str(datetime.now())
-            curr_dt = re.sub('[^0-9]', '', curr_dt)
-            self.model_name = kwargs['model_name'] + '_'+curr_dt
+            curr_dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+            self.model_name = kwargs['model_name'] + '_' + curr_dt
         else:
             # Raise Error if model name is missing
             logging.error("Model Name Object not found amongst the Arguments")
@@ -246,6 +246,10 @@ class TrainModelWrapper:
         self.uniform_kl_weight = True # set the default
         if "uniform_kl_weight" in kwargs:
             self.uniform_kl_weight = kwargs["uniform_kl_weight"] # override default if needed
+        
+        self.n_samples = 1 # set the default
+        if "n_samples" in kwargs:
+            self.n_samples = kwargs["n_samples"] # override default if needed
 
         # Check the mode of the training
         if 'mode' in kwargs:
@@ -445,8 +449,11 @@ class TrainModelWrapper:
 
         dataloaders = {'train': self.train_loader,
                        'val': self.val_loader, 'test': self.test_loader}
-        dataset_sizes = {'train': len(
-            self.train_dataset), 'val': self.val_dataset, 'test': self.test_dataset}
+        dataset_sizes = {
+            'train': len(self.train_dataset),
+            'val': len(self.val_dataset),
+            'test': len(self.test_dataset),
+        }
 
         print("The tensorboard model name corresponding to this model is",
               self.model_name)
@@ -471,14 +478,18 @@ class TrainModelWrapper:
                 epoch_kl = 0.0
                 epoch_nll = 0.0
 
-                for batch_index, inputs, labels in tqdm(enumerate(dataloaders[phase])):
+                for batch_index, (inputs, labels) in tqdm(enumerate(dataloaders[phase])):
                     inputs = inputs.to(device)
                     labels = labels.to(device)
 
+                    inputs = inputs.view(inputs.shape[0], -1)
+                    if inputs.type() == "torch.DoubleTensor":
+                        inputs = inputs.float()
+
                     with torch.set_grad_enabled(phase == 'train'):
-                        outputs, kl_divergence = self.model(inputs)
+                        outputs, kl_divergence = self.model(inputs, n_samples=self.n_samples)
                         kl_weight = self._get_kl_weight(
-                            M=dataset_sizes[phase] // outputs.shape[0],
+                            M=dataset_sizes[phase] // self.batch_size,
                             batch_index=batch_index, uniform_kl_weight=self.uniform_kl_weight,
                         )
                         loss, nll = self.criterion(
@@ -546,7 +557,7 @@ class TrainModelWrapper:
             print("")
         end = time.time()
         time_elapsed = end-start
-        print('Early Stopping Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
+        print('Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
             time_elapsed//3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
         return self.model, history
 

@@ -1,12 +1,12 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from layers import VariationalLinear
+from models.layers import VariationalLinear
 
 
 class CrossEntropyELBO(nn.Module):
     def __init__(self):
-        super(CrossEntropyELBO, self).__init__()
+        super().__init__()
 
     def forward(self, outputs, labels, kl_divergence, kl_weight):
         nll = self._get_neg_log_lik(y_pred=outputs, y_true=labels)
@@ -16,7 +16,7 @@ class CrossEntropyELBO(nn.Module):
         return elbo, nll
 
 
-    def _get_neg_log_lik(y_pred, y_true):
+    def _get_neg_log_lik(self, y_pred, y_true):
         n_samples = y_pred.shape[1]
 
         out = F.cross_entropy(
@@ -177,7 +177,7 @@ class VariationalMLP(nn.Module):
         if n_samples == 1:
             x = x.unsqueeze(1)
         else:
-            x = x.squeeze()
+            x = x.squeeze(dim=2)
 
         return x, total_kl_divergence
 
