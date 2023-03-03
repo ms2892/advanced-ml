@@ -168,9 +168,11 @@ class VariationalMLP(nn.Module):
             x = x.unsqueeze(1).unsqueeze(1)
 
         total_kl_divergence = 0
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
             x, kl_divergence = layer(x, n_samples=n_samples)
-            x = F.relu(x)
+            
+            if i < len(self.layers) - 1:
+                x = F.relu(x)
 
             total_kl_divergence += kl_divergence
 

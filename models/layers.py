@@ -94,7 +94,7 @@ class VariationalLinear(nn.Module):
         weight_distribution = D.Normal(
             loc=self.mu_weights, scale=F.softplus(self.rho_weights)
         )
-        W = weight_distribution.sample()
+        W = weight_distribution.rsample()
 
         # Calculate weight contribution to KL divergence
         kl_divergence += weight_distribution.log_prob(W).sum()
@@ -108,7 +108,7 @@ class VariationalLinear(nn.Module):
             bias_distribution = D.Normal(
                 loc=self.mu_bias, scale=F.softplus(self.rho_bias)
             )
-            b = bias_distribution.sample()
+            b = bias_distribution.rsample()
 
             # Add the bias
             out += b
@@ -137,7 +137,7 @@ class VariationalLinear(nn.Module):
         weight_distribution = D.Normal(
             loc=self.mu_weights, scale=F.softplus(self.rho_weights)
         )
-        W = weight_distribution.sample((n_samples, ))
+        W = weight_distribution.rsample((n_samples, ))
 
         # Calculate weight contribution to KL divergence
         kl_divergence += weight_distribution.log_prob(W).sum()
@@ -151,7 +151,7 @@ class VariationalLinear(nn.Module):
             bias_distribution = D.Normal(
                 loc=self.mu_bias, scale=F.softplus(self.rho_bias)
             )
-            b = bias_distribution.sample((n_samples, 1, ))
+            b = bias_distribution.rsample((n_samples, 1, ))
 
             # Add the bias
             out += b
