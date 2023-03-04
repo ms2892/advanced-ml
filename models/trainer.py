@@ -468,7 +468,7 @@ class TrainModelWrapper:
             print('-'*10)
 
             for phase in ['train', 'val', 'test']:
-                if (phase == 'train'):
+                if phase == 'train':
                     self.model.train()
                 else:
                     self.model.eval()
@@ -499,12 +499,12 @@ class TrainModelWrapper:
                         if phase == 'train':
                             (loss / self.scale_const).backward()
 
-                        # Zero Grad
-                        if phase == 'train':
                             self.optimizer.step()
                             if self.scheduler:
                                 self.scheduler.step()
+                                
                             self.optimizer.zero_grad()
+                    
                     if self.c_flag == 4:
                         probs = F.sigmoid(outputs)
                         probs = torch.mean(outputs, dim=1)
