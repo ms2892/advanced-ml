@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -154,44 +155,63 @@ class VariationalMLP(nn.Module):
         self.prior_distribution = prior_distribution
 
         self.layers = nn.ModuleList([
-            VariationalLinear(in_features=input_dim, out_features=hidden_dim,
-                              prior_distribution=prior_distribution),
-            VariationalLinear(in_features=hidden_dim, out_features=hidden_dim,
-                              prior_distribution=prior_distribution),
-            VariationalLinear(in_features=hidden_dim, out_features=output_dim,
-                              prior_distribution=prior_distribution),
+            VariationalLinear(
+                in_features=input_dim, out_features=hidden_dim,
+                prior_distribution=prior_distribution
+            ),
+            VariationalLinear(
+                in_features=hidden_dim, out_features=hidden_dim,
+                prior_distribution=prior_distribution
+            ),
+            VariationalLinear(
+                in_features=hidden_dim, out_features=output_dim,
+                prior_distribution=prior_distribution
+            ),
         ])
-
-    def forward(self, x, n_samples=1):
-        # Add extra singleton dimensions for the multiple sample case
-        if n_samples > 1:
-            x = x.unsqueeze(1).unsqueeze(1)
-
+    
+    def _single_forward(self, x):
         total_kl_divergence = 0
         for i, layer in enumerate(self.layers):
-            x, kl_divergence = layer(x, n_samples=n_samples)
+            x, kl_divergence = layer(x)
             
             if i < len(self.layers) - 1:
                 x = F.relu(x)
 
             total_kl_divergence += kl_divergence
 
-        if n_samples == 1:
-            x = x.unsqueeze(1)
-        else:
-            x = x.squeeze(dim=2)
+        x = x.unsqueeze(dim=1)
 
         return x, total_kl_divergence
+    
+
+    def forward(self, x, n_samples=1):
+        logits = []
+        kl_divergence = 0
+        
+        for _ in range(n_samples):
+            curr_logits, curr_kl_divergence = self._single_forward(x)
+            logits.append(curr_logits)
+            kl_divergence += curr_kl_divergence
+
+        logits = torch.cat(logits, axis=1)
+        kl_divergence /= n_samples
+    
+        return logits, kl_divergence
 
 
 def main():
     import torch
     import torch.distributions as D
 
-    p = 1/4
+    sigma_1 = torch.exp(-torch.tensor(1))
+    sigma_2 = torch.exp(-torch.tensor(7))
+
+    p = 1/2
     mixture_distribution = D.Categorical(probs=torch.tensor([p, 1 - p]))
     component_distribution = D.Normal(
-        loc=torch.zeros(2), scale=torch.tensor([0.1, 1]))
+        loc=torch.zeros(2),
+        scale=torch.tensor([sigma_1, sigma_2]),
+    )
     prior_distribution = D.MixtureSameFamily(
         mixture_distribution=mixture_distribution, component_distribution=component_distribution
     )
