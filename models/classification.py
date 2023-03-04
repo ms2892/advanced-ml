@@ -116,6 +116,8 @@ class Classification_Dropout(nn.Module):
         self.out = hl_type(hl_units, output_dim)
         self.relu = nn.ReLU()
         self.flatten = nn.Flatten()
+        self.drop1 = nn.Dropout(0.2)
+        self.drop2 = nn.Dropout(0.5)
 
     def forward(self, x):
         '''
@@ -131,16 +133,18 @@ class Classification_Dropout(nn.Module):
         x = self.flatten(x)
 
         # 20% Dropout at input layer
-        x = F.dropout(x, p=0.2)
-
+        x = self.drop1(x)
+#         x = F.dropout(x, p=0.2)
+#         print(x.shape)
         intermediate = self.inp(x)
         # 50% Dropout at 1st linear layer
-        intermediate = F.dropout(intermediate, p=0.5)
+        intermediate = self.drop2(intermediate)
         intermediate = self.relu(intermediate)
-
+#         print(intermediate.shape)
+        
         # 50 % dropout at 2nd linear layer
         intermediate = self.linear1(intermediate)
-        intermediate = F.dropout(intermediate, p=0.5)
+        intermediate = self.drop2(intermediate)
         intermediate = self.relu(intermediate)
 
         # Output Nodes

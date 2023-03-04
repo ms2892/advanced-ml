@@ -332,14 +332,16 @@ class TrainModelWrapper:
                         # Backward Pass
 
                         if phase == 'train':
-                            scaler.scale(loss).backward()
+                            loss.backward()
 
                         # Zero grad
                         if phase == 'train':
+                            # scaler.step(self.optimizer)
                             self.optimizer.step()
-                        if self.scheduler:
-                            self.scheduler.step()
-                        self.optimizer.zero_grad()
+                            # scaler.update()
+                            # if self.scheduler:
+                                # self.scheduler.step()
+                            self.optimizer.zero_grad()
 
                     # Classification Metric Calculation
                     if self.c_flag == 1:
@@ -502,7 +504,7 @@ class TrainModelWrapper:
                             self.optimizer.step()
                             if self.scheduler:
                                 self.scheduler.step()
-                                
+
                             self.optimizer.zero_grad()
                     
                     if self.c_flag == 4:
