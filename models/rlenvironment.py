@@ -141,6 +141,10 @@ class Environment:
 
         # Initialize buffers
         self.cum_regret = []
+        self.tp = []
+        self.fp = []
+        self.tn = []
+        self.fn = []
         self.reward_buffer = np.zeros(self.buffer_size)
         self.context_buffer = np.zeros((self.buffer_size, self.data_contexts.shape[1]))
         self.label_buffer = np.zeros(self.buffer_size)
@@ -180,10 +184,26 @@ class Environment:
         else:
             new_regret = self.cum_regret[-1] + (orcl_reward - agt_reward)
         self.cum_regret.append(new_regret)
+
         self.reward_buffer[new_idx] = agt_reward
         self.context_buffer[new_idx, :] = context
         self.label_buffer[new_idx] = edible
         self.action_buffer[new_idx, :] = (1, 0) if eaten else (0, 1)
+
+        # Update false/true positive/negative stats
+        self.tp.append(0)
+        self.fp.append(0)
+        self.tn.append(0)
+        self.fn.append(0)
+        if edible and eaten:
+            self.tp[-1] = 1
+        elif edible and not eaten:
+            self.fn[-1] = 1
+        elif not eaten and not edible:
+            self.tn[-1] = 1
+        else:
+            self.fp[-1] = 1
+
         self.memory_step += 1
 
         # Now train the model on available data
