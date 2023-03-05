@@ -23,7 +23,7 @@ class Environment:
             'batch_size'    : batch size (int),
             'buffer_size'   : how many previous steps to consider reward, action etc from (int),
             'learning_rate' : model learning rate (float),
-            'scheduler'     : scheduler (object) (optional),
+            'scheduler'     : list to make scheduler: [object, **args] (list),
             'data_contexts' : 2D array of integers. One row = features for one mushroom (array),
             'data_labels'   : 1D binary array of true mushroom labels (array),
             'training_steps': (int),
@@ -90,7 +90,8 @@ class Environment:
         if "scheduler" in kwargs:
             scheduler = kwargs["scheduler"]
         else:
-            scheduler = None
+            scheduler = []
+        self.scedule_holder = scheduler
 
         if "data_contexts" in kwargs:
             self.data_contexts = kwargs["data_contexts"]
@@ -226,4 +227,7 @@ class Environment:
 
             # Train the model through the agent
             loss = self.agent.model_update(context_batch, label_batch, idx)
+        # If we are using a scheduler; take a step after all these iterations (1epoch)
+        if len(self.scedule_holder) > 0:
+            self.agent.scheduler.step()
         return loss

@@ -2,12 +2,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from models.classification import (
-    Classification,
-    Classification_Dropout
-    )
+from models.classification import Classification, Classification_Dropout
 from models.layers import VariationalLinear
 from models.regression import Regression, Regression_Dropout
+
+from torch.optim.lr_scheduler import StepLR, MultiStepLR, ExponentialLR
 
 
 class AgentBandit:
@@ -24,7 +23,7 @@ class AgentBandit:
             'hl_type'       : type of hidden layers in model (),
             'hl_units'      : number of hidden layer nodes to model (int),
             'learning_rate' : model learning rate (float),
-            'scheduler'     : scheduler (object) (optional),
+            'scheduler'     : list to make scheduler: [object, **args] (list),
             'n_samples'     : number of forward passes to average over (int) (Default = 1),
             'epsilon'       : probability of exploration (float) (Default = 0)
           }
@@ -55,6 +54,7 @@ class AgentBandit:
         model_update_bbb() -> loss
             Update bbb model
     """
+
     def __init__(
         self,
         model_class,
@@ -81,6 +81,11 @@ class AgentBandit:
             self.model = model_class()
             print("Define loss for non-linear layers")
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr)
+        if len(scheduler) > 0:
+            sch_class = scheduler[0]
+            self.scheduler = sch_class(self.optimizer, *scheduler[1:])
+        else:
+            print("Scheduler not made")
 
     def agent_reward(self, edible, eaten):
         if not eaten:
