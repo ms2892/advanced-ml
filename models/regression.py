@@ -4,6 +4,26 @@ import torch.nn.functional as F
 import numpy as np
 
 
+class RegressionELBO(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, outputs, labels, kl_divergence, kl_weight):
+        nll = self._get_neg_log_lik(y_pred=outputs, y_true=labels)
+
+        elbo = kl_weight * kl_divergence + nll
+        
+        return elbo, nll
+
+    
+    def _get_neg_log_lik(self, y_true, y_pred):
+        batched_nll = (y_pred - y_true.unsqueeze(-1))**2 / 2
+        
+        return batched_nll.sum(dim=0).mean(dim=0)
+        
+
+
+
 class Regression(nn.Module):
     '''
         Class:
@@ -93,6 +113,8 @@ class Regression_Dropout(nn.Module):
         self.relu = nn.ReLU()
         self.flatten = nn.Flatten()
         self.double()
+        self.drop1 = nn.Dropout(0.2)
+        self.drop2 = nn.Dropout(0.5)
 
     def forward(self, x):
         '''
@@ -108,16 +130,16 @@ class Regression_Dropout(nn.Module):
         x = self.flatten(x)
 
         # 20% Dropout at input layer
-        x = F.dropout(x, p=0.2)
+        x = self.drop1(x)
         
         intermediate = self.inp(x)
         # 50% Dropout at 1st linear layer
-        intermediate = F.dropout(intermediate, p=0.5)
+        intermediate = self.drop2(intermediate)
         intermediate = self.relu(intermediate)
         
         # 50 % dropout at 2nd linear layer
         intermediate = self.linear1(intermediate)
-        intermediate = F.dropout(intermediate, p=0.5)
+        intermediate = self.drop2(intermediate)
         intermediate = self.relu(intermediate)
         
         # Output Nodes

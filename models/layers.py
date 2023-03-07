@@ -56,38 +56,10 @@ class VariationalLinear(nn.Module):
         self.prior_distribution = prior_distribution
 
 
-    def forward(self, x:torch.Tensor, n_samples=1, prune_weights=False, pruning_threshold=0.0):
-        '''
-            Calculates logits for the input x using "n_samples" samples of the weights.
-
-            Args:
-                x: tensor of shape (batch_size, in_features) if n_samples = 1
-                   tensor of shape (batch_size, 1, 1, in_features) if n_samples > 1
-                n_samples: how many times to sample the weights for the linear layer
-                prune_weights: boolean value indicating whether weight pruning should be applied.
-                               Defaults to False.
-                pruning_threshold: determines when to prune the weights
-            Output:
-                tuple (tensor, scalar tensor):
-                    - the first element is tensor of logits of the model for the input x.
-                      If n_samples = 1, then the shape is (batch_size, out_features).
-                      If n_samples > 1, then the shape is (batch_size, n_samples, out_features).
-                    - the second element is the KL divergence of the model weights sampled
-                      in the forward pass. It is a 0-dim tensor containing only one scalar.
-        '''
-        if n_samples == 1:
-            return self.forward_single_sample(x, prune_weights=prune_weights, pruning_threshold=pruning_threshold)
-        else:
-            return self.forward_multiple_samples(x, n_samples=n_samples, prune_weights=prune_weights, pruning_threshold=pruning_threshold)
-
-
-    def forward_single_sample(self, x:torch.Tensor, prune_weights=False, pruning_threshold=0.0):
+    def forward(self, x:torch.Tensor, prune_weights=False, pruning_threshold=0.0):
         '''
             Args:
                 x: input tensor of size (batch_size, in_features)
-                prune_weights: boolean value indicating whether weight pruning should be applied.
-                               Defaults to False.
-                pruning_threshold: determines when to prune the weights
             Output:
                 tuple (tensor, scalar tensor):
                     - the first element is tensor of logits of the model for the input x. The shape is (batch_size, out_features).
@@ -102,7 +74,7 @@ class VariationalLinear(nn.Module):
         weight_distribution = D.Normal(
             loc=self.mu_weights, scale=sigma_weights
         )
-        W = weight_distribution.sample()
+        W = weight_distribution.rsample()
         if prune_weights:
             snr = self.mu_weights.abs() / sigma_weights
             mask = snr > pruning_threshold
@@ -122,87 +94,33 @@ class VariationalLinear(nn.Module):
             bias_distribution = D.Normal(
                 loc=self.mu_bias, scale=sigma_bias
             )
-            b = bias_distribution.sample()
+            b = bias_distribution.rsample()
             if prune_weights:
                 snr = self.mu_bias.abs() / sigma_bias
                 mask = snr > pruning_threshold
                 b[mask] = 0
             print(f"b: {(b == 0).sum() / b.nelement()}")
 
-            # Calculate bias contribution to KL divergence
-            kl_divergence += bias_distribution.log_prob(b).sum()
-            kl_divergence -= self.prior_distribution.log_prob(b).sum()
-
             # Add the bias
             out += b
-
-        return out, kl_divergence
-    
-
-    def forward_multiple_samples(self, x:torch.Tensor, n_samples, prune_weights=False, pruning_threshold=0.0):
-        '''
-            Args:
-                x: input tensor of size (batch_size, 1, 1, in_features)
-                prune_weights: boolean value indicating whether weight pruning should be applied.
-                               Defaults to False.
-                pruning_threshold: determines when to prune the weights
-            Output:
-                tuple (tensor, scalar tensor):
-                    - the first element is tensor of logits of the model for the input x. The shape is (batch_size, n_samples, out_features).
-                    - the second element is the KL divergence of the model weights sampled
-                      in the forward pass. It is a 0-dim tensor containing only one scalar.
-        '''
-
-        kl_divergence = 0
-
-        # Calculate W
-        sigma_weights = F.softplus(self.rho_weights)
-        weight_distribution = D.Normal(
-            loc=self.mu_weights, scale=sigma_weights
-        )
-        W = weight_distribution.sample((n_samples, ))
-        if prune_weights:
-            snr = self.mu_weights.abs() / sigma_weights
-            mask = snr > pruning_threshold
-            W[:, mask] = 0
-        print(f"W: {(W == 0).sum() / W.nelement()}")
-
-        # Calculate weight contribution to KL divergence
-        kl_divergence += weight_distribution.log_prob(W).sum()
-        kl_divergence -= self.prior_distribution.log_prob(W).sum()
-
-        # Multiply input by W
-        out = torch.matmul(x, W.transpose(2, 1))
-
-        # Handle bias
-        if self.bias:
-            sigma_bias = F.softplus(self.rho_bias)
-            bias_distribution = D.Normal(
-                loc=self.mu_bias, scale=sigma_bias
-            )
-            b = bias_distribution.sample((n_samples, ))
-            if prune_weights:
-                snr = self.mu_bias.abs() / sigma_bias
-                mask = snr > pruning_threshold
-                b[:, mask] = 0
-            b = b.unsqueeze(1)
-            print(f"b: {(b == 0).sum() / b.nelement()}")
-            
 
             # Calculate bias contribution to KL divergence
             kl_divergence += bias_distribution.log_prob(b).sum()
             kl_divergence -= self.prior_distribution.log_prob(b).sum()
-
-            # Add the bias
-            out += b
 
         return out, kl_divergence
 
 
 def main():
-    p = 1/4
+    sigma_1 = torch.exp(-torch.tensor(1))
+    sigma_2 = torch.exp(-torch.tensor(7))
+
+    p = 1/2
     mixture_distribution = D.Categorical(probs=torch.tensor([p, 1 - p]))
-    component_distribution = D.Normal(loc=torch.zeros(2), scale=torch.tensor([0.1, 1]))
+    component_distribution = D.Normal(
+        loc=torch.zeros(2),
+        scale=torch.tensor([sigma_1, sigma_2]),
+    )
     prior_distribution = D.MixtureSameFamily(
         mixture_distribution=mixture_distribution, component_distribution=component_distribution
     )
@@ -210,8 +128,8 @@ def main():
         in_features=784, out_features=1200, bias=True, prior_distribution=prior_distribution, nonlinearity="linear"
     )
     
-    for p in layer.parameters():
-        print(p.shape)
+    # for p in layer.parameters():
+    #     print(p.shape)
 
     x = torch.randn((128, 784))
     with torch.no_grad():
@@ -219,24 +137,7 @@ def main():
     
     print(out.shape)
     print(out.mean(), out.std()) # Should be around 0 and 1
-
-    print(kl_divergence) # Initial KL divergence
-    print(2 * kl_divergence) # Twice initial KL divergence
-
-
-    with torch.no_grad():
-        total_kl_divergence = 0
-
-        for _ in range(2):
-            out, kl_divergence = layer(x)
-            total_kl_divergence += kl_divergence
-
-    print(total_kl_divergence) # Should be twice the initial
-
-
-    with torch.no_grad():
-        out, kl_divergence = layer(x)
-    print(kl_divergence) # Should be approx. equal to initial again
+    print(kl_divergence) # Should be different from initial this time
 
 
     with torch.no_grad():
@@ -248,23 +149,7 @@ def main():
 
     with torch.no_grad():
         out, kl_divergence = layer(x)
-    print(kl_divergence) # Should be different this time
-
-
-    # Test with multiple samples
-    print("\nMultiple samples")
-    layer = VariationalLinear(
-        in_features=784, out_features=1200, bias=True, prior_distribution=prior_distribution, nonlinearity="linear"
-    )
-
-    x = torch.randn((128, 1, 1, 784))
-    with torch.no_grad():
-        out, kl_divergence = layer(x, n_samples=5)
-    
-    print(out.shape)
-    print(out.mean(), out.std()) # Should be around 0 and 1
-
-    print(kl_divergence) # Initial KL divergence
+    print(kl_divergence) # Should be different from initial this time
     
 
 if __name__ == "__main__":

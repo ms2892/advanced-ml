@@ -8,3 +8,5 @@ datasets_debug.log
 test*.ipynb
 trainer_debug.log
 .DS_Store
+weights/
+*.rar

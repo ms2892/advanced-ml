@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import time
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from tqdm import tqdm
 import logging
 from collections import defaultdict
@@ -36,22 +37,28 @@ class TrainModelWrapper:
             This class takes in a dictionary as an attribute. The format of the dictionary is as follows
 
             args = {
-                'model'         : model (object),
-                'model_name'    : model name (string)
-                'train_dataset' : training dataset (object),
-                'criterion'     : loss function (object),
-                'batch_size'    : batch size (int),
-                'optimizer'     : optimizer (object),
-                'scheduler'     : scheduler (object) (optional),
-                'es_flag'       : Boolean value to decide whether to use early stopping or not. (Default = False)
-                'num_epochs'    : number of epochs (int),   
-                'val_dataset'   : Validation Dataset(object)
-                'test_dataset'  : Test Dataset (object)
-                'mode'          : Boolean value to decide whether this training is a classification training or not. (Default = 0) 
-                                      Possible Values [0,1,2] -> 
-                                        0 - Regression
-                                        1 - Binary Classification
-                                        2 - MultiClass Classification
+                'model'             : model (object),
+                'model_name'        : model name (string)
+                'train_dataset'     : training dataset (object),
+                'criterion'         : loss function (object),
+                'batch_size'        : batch size (int),
+                'optimizer'         : optimizer (object),
+                'scheduler'         : scheduler (object) (optional),
+                'es_flag'           : Boolean value to decide whether to use early stopping or not. (Default = False)
+                'num_epochs'        : number of epochs (int),   
+                'val_dataset'       : Validation Dataset(object)
+                'test_dataset'      : Test Dataset (object)
+                'uniform_kl_weight' : whether weigthing type for the KL divergence is uniform.  (Default = True)
+                'scale_const'       : normalizing constant to prevent exploding gradients. (Default = 1)
+                'n_samples'         : number of weight samples to be used in the forward pass for BNN models (Default = 1)
+                'mode'              : Boolean value to decide whether this training is a classification training or not. (Default = 0) 
+                                        Possible Values [0,1,2,3,4,5] -> 
+                                            0 - Regression
+                                            1 - Binary Classification
+                                            2 - MultiClass Classification
+                                            3 - Bayesian Regression
+                                            4 - Bayesian Binary Classification
+                                            5 - Bayesian MultiClass Classification
               }
 
             To pass these attributes to the TrainModelWrapper please pass it using the following syntax
@@ -136,9 +143,8 @@ class TrainModelWrapper:
 
         # Check if model name is present in the configuration
         if 'model_name' in kwargs:
-            curr_dt = str(datetime.now())
-            curr_dt = re.sub('[^0-9]', '', curr_dt)
-            self.model_name = kwargs['model_name'] + '_'+curr_dt
+            curr_dt = datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+            self.model_name = kwargs['model_name'] + '_' + curr_dt
         else:
             # Raise Error if model name is missing
             logging.error("Model Name Object not found amongst the Arguments")
@@ -232,6 +238,18 @@ class TrainModelWrapper:
 
             # Set to False if flag is not present
             self.es_flag = False
+        
+        self.scale_const = 1 # set the default
+        if "scale_const" in kwargs:
+            self.scale_const = kwargs["scale_const"] # override default if needed
+        
+        self.uniform_kl_weight = True # set the default
+        if "uniform_kl_weight" in kwargs:
+            self.uniform_kl_weight = kwargs["uniform_kl_weight"] # override default if needed
+        
+        self.n_samples = 1 # set the default
+        if "n_samples" in kwargs:
+            self.n_samples = kwargs["n_samples"] # override default if needed
 
         # Check the mode of the training
         if 'mode' in kwargs:
@@ -253,6 +271,10 @@ class TrainModelWrapper:
             self.test_dataset, batch_size=self.batch_size, shuffle=True)
 
     def train(self):
+        
+        if self.c_flag in [3,4,5]:
+            return self.bnn_train()
+        
         # Mark the starting time
         start = time.time()
 
@@ -282,7 +304,7 @@ class TrainModelWrapper:
         else:
             earlystop = None
 
-        self.model =self.model.to(device)
+        self.model = self.model.to(device)
 
         # Training Loop
         for step, epoch in enumerate(range(1, self.num_epochs+1)):
@@ -304,22 +326,21 @@ class TrainModelWrapper:
                     # Forward Pass
 
                     with torch.set_grad_enabled(phase == 'train'):
-                        with amp.autocast(enabled=True):
-                            output = self.model(inputs)
-                            loss = self.criterion(output, label)
-                            loss = loss/n_accumulate
+                        output = self.model(inputs)
+                        loss = self.criterion(output, label)
 
                         # Backward Pass
 
                         if phase == 'train':
-                            scaler.scale(loss).backward()
+                            loss.backward()
 
                         # Zero grad
-                        if phase == 'train' and (step+1) % n_accumulate == 0:
-                            scaler.step(self.optimizer)
-                            scaler.update()
-                            if self.scheduler:
-                                self.scheduler.step()
+                        if phase == 'train':
+                            # scaler.step(self.optimizer)
+                            self.optimizer.step()
+                            # scaler.update()
+                            # if self.scheduler:
+                                # self.scheduler.step()
                             self.optimizer.zero_grad()
 
                     # Classification Metric Calculation
@@ -405,6 +426,158 @@ class TrainModelWrapper:
         _, preds = torch.max(pred, 1)
         correct_preds = preds.eq(label).sum()
         return correct_preds
+
+    def bnn_train(self):
+        '''
+            Method:
+                This method trains the BNN based on the custom loss function and KL weight distribution
+                
+            Args:
+                None
+            
+            Output:
+                (model object)  :   returns the final instance of the model
+                (dict)          :   contains information of all the performance metrics
+        '''
+        
+        # Mark the starting time of the training
+        start = time.time()
+        
+        # Check whether gpu is present or not
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Empty 
+        history = defaultdict(list)
+
+        dataloaders = {'train': self.train_loader,
+                       'val': self.val_loader, 'test': self.test_loader}
+        dataset_sizes = {
+            'train': len(self.train_dataset),
+            'val': len(self.val_dataset),
+            'test': len(self.test_dataset),
+        }
+
+        print("The tensorboard model name corresponding to this model is",
+              self.model_name)
+
+        if self.es_flag:
+            earlystop = self.EarlyStop()
+        else:
+            earlystop = None
+
+        for step, epoch in enumerate(range(1, self.num_epochs+1)):
+            print('Epoch {}/{}'.format(epoch, self.num_epochs))
+            print('-'*10)
+
+            for phase in ['train', 'val', 'test']:
+                if phase == 'train':
+                    self.model.train()
+                else:
+                    self.model.eval()
+                epoch_loss = 0.0 # ELBO scaled by 1/scale_const
+                running_corr = 0.0
+                epoch_elbo = 0.0 
+                epoch_kl = 0.0
+                epoch_nll = 0.0
+
+                for batch_index, (inputs, labels) in tqdm(enumerate(dataloaders[phase])):
+                    inputs = inputs.to(device)
+                    labels = labels.to(device)
+
+                    inputs = inputs.view(inputs.shape[0], -1)
+                    if inputs.type() == "torch.DoubleTensor":
+                        inputs = inputs.float()
+
+                    with torch.set_grad_enabled(phase == 'train'):
+                        outputs, kl_divergence = self.model(inputs, n_samples=self.n_samples)
+                        kl_weight = self._get_kl_weight(
+                            M=dataset_sizes[phase] // self.batch_size,
+                            batch_index=batch_index, uniform_kl_weight=self.uniform_kl_weight,
+                        )
+                        loss, nll = self.criterion(
+                            outputs, labels, kl_divergence, kl_weight,
+                        )
+
+                        if phase == 'train':
+                            (loss / self.scale_const).backward()
+
+                            self.optimizer.step()
+                            if self.scheduler:
+                                self.scheduler.step()
+
+                            self.optimizer.zero_grad()
+                    
+                    if self.c_flag == 4:
+                        probs = F.sigmoid(outputs)
+                        probs = torch.mean(outputs, dim=1)
+                        running_corr += self.binary_correct(probs, labels)
+
+                    elif self.c_flag == 5:
+                        probs = F.softmax(outputs, dim=-1)
+                        probs = torch.mean(probs, dim=1)
+                        
+                        running_corr+= self.multi_correct(probs, labels)
+
+                    epoch_loss += loss.item() / self.scale_const
+                    epoch_elbo += loss.item()
+                    weighted_kl = (loss - nll).item()
+                    epoch_kl += weighted_kl
+                    epoch_nll += nll.item()
+                
+                if self.c_flag != 0:
+                    epoch_acc = running_corr/dataset_sizes[phase]
+
+                self.writer.add_scalar(phase+'_loss', epoch_loss, epoch)
+                self.writer.add_scalar(phase+'_elbo', epoch_elbo, epoch)
+                self.writer.add_scalar(phase+'_kl', epoch_kl, epoch)
+                self.writer.add_scalar(phase+'_nll', epoch_nll, epoch)
+                if self.c_flag != 0:
+                    self.writer.add_scalar(phase+'_acc', epoch_acc, epoch)
+
+                history[phase+' loss'].append(epoch_loss)
+                print('{} Loss: {:.4f}'.format(phase, epoch_loss))
+                if self.c_flag != 0:
+                    history[phase+' acc'].append(epoch_acc)
+                    print('{} Acc: {:.4f}'.format(phase, epoch_acc))
+
+                if self.es_flag and phase == 'test':
+                    if self.c_flag == 0:
+
+                        if earlystop.early_stop(epoch_loss):
+                            end = time.time()
+                            time_elapsed = end-start
+                            print('Early Stopping Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
+                                time_elapsed//3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
+                            return self.model, history
+                    else:
+                        if earlystop.early_stop(epoch_acc):
+                            end = time.time()
+                            time_elapsed = end-start
+                            print('Early Stopping Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
+                                time_elapsed//3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
+                            return self.model, history
+            print("")
+        end = time.time()
+        time_elapsed = end-start
+        print('Training completed in {:.0f}h {:.0f}m {:.0f}s'.format(
+            time_elapsed//3600, (time_elapsed % 3600)//60, (time_elapsed % 3600) % 60))
+        return self.model, history
+
+
+    def _get_kl_weight(self, M, batch_index=-1, uniform_kl_weight=True):
+        '''
+            M: number of batches
+        '''
+        
+        kl_weight = 1 / M
+        if not uniform_kl_weight:
+            if batch_index == -1:
+                raise Exception("Batch Index Not specified while getting Loss")
+            
+            kl_weight = 2**(M - batch_index) / (2**M - 1)
+        
+        return kl_weight
+
 
     class EarlyStop:
         '''
