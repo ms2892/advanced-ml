@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from layers import VariationalLinear
+from models.layers import VariationalLinear
 
 
 class CrossEntropyELBO(nn.Module):
