@@ -574,7 +574,9 @@ class TrainModelWrapper:
             if batch_index == -1:
                 raise Exception("Batch Index Not specified while getting Loss")
             
-            kl_weight = 2**(M - batch_index) / (2**M - 1)
+            # The batch_index + 1 is because we should be counting the batches
+            # from 1 to M, not from 0 to M-1
+            kl_weight = 2**(M - (batch_index + 1)) / (2**M - 1)
         
         return kl_weight
 
