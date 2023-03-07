@@ -273,8 +273,8 @@ def main():
 
     snr = all_mus.abs() / all_sigmas
     percentile_to_prune = 0.75
-    print(f"\nPercentage remaining weights: {1-percentile_to_prune:.2f}")
-    snr_threshold = torch.quantile(snr, q=1-percentile_to_prune)
+    print(f"\nPercentage remaining weights: {percentile_to_prune:.2f}")
+    snr_threshold = torch.quantile(snr, q=percentile_to_prune)
     print(f"{snr_threshold=}")
 
     print("\nNo pruning")
