@@ -77,7 +77,7 @@ class VariationalLinear(nn.Module):
         W = weight_distribution.rsample()
         if prune_weights:
             snr = self.mu_weights.abs() / sigma_weights
-            mask = snr > pruning_threshold
+            mask = snr <= pruning_threshold
             W[mask] = 0
         print(f"W: {(W == 0).sum() / W.nelement()}")
 
@@ -97,7 +97,7 @@ class VariationalLinear(nn.Module):
             b = bias_distribution.rsample()
             if prune_weights:
                 snr = self.mu_bias.abs() / sigma_bias
-                mask = snr > pruning_threshold
+                mask = snr <= pruning_threshold
                 b[mask] = 0
             print(f"b: {(b == 0).sum() / b.nelement()}")
 
