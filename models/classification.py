@@ -172,12 +172,15 @@ class VariationalMLP(nn.Module):
                 prior_distribution=prior_distribution
             ),
         ])
-    
-    def _single_forward(self, x):
+
+
+    def _single_forward(self, x, prune_weights, pruning_threshold):
         total_kl_divergence = 0
         for i, layer in enumerate(self.layers):
-            x, kl_divergence = layer(x)
-            
+            x, kl_divergence = layer(
+                x, prune_weights=prune_weights, pruning_threshold=pruning_threshold
+            )
+
             if i < len(self.layers) - 1:
                 x = F.relu(x)
 
@@ -188,12 +191,15 @@ class VariationalMLP(nn.Module):
         return x, total_kl_divergence
     
 
-    def forward(self, x, n_samples=1):
+    def forward(self, x, n_samples=1, prune_weights=False, pruning_threshold=0.0):
+
         logits = []
         kl_divergence = 0
         
         for _ in range(n_samples):
-            curr_logits, curr_kl_divergence = self._single_forward(x)
+            curr_logits, curr_kl_divergence = self._single_forward(
+                x, prune_weights=prune_weights, pruning_threshold=pruning_threshold
+            )
             logits.append(curr_logits)
             kl_divergence += curr_kl_divergence
 
@@ -222,8 +228,8 @@ def main():
 
     model = VariationalMLP(input_dim=784, hidden_dim=800, output_dim=10, prior_distribution=prior_distribution)
     
-    for p in model.parameters():
-        print(p.shape)
+    # for p in model.parameters():
+    #     print(p.shape)
 
     x = torch.randn((128, 784))
     with torch.no_grad():
@@ -239,6 +245,57 @@ def main():
 
     print(out.shape)
     print(kl_divergence)
+
+
+    # Test pruning
+
+    # Random initialize parameters because they are untrained
+    # and so all the same
+    with torch.no_grad():
+        for p in model.named_parameters():
+            if "mu" in p[0]:
+                p[1].data.normal_(0, 0.05)
+            elif "rho" in p[0]:
+                p[1].data.normal_(0, 1)
+    
+    all_mus = []
+    all_sigmas = []
+
+    with torch.no_grad():
+        for p in model.named_parameters():
+            if "mu" in p[0]:
+                all_mus.append(p[1].flatten())
+            elif "rho" in p[0]:
+                all_sigmas.append(F.softplus(p[1]).flatten())
+        
+        all_mus = torch.hstack(all_mus)
+        all_sigmas = torch.hstack(all_sigmas)
+
+    snr = all_mus.abs() / all_sigmas
+    percentile_to_prune = 0.75
+    print(f"\nPercentage remaining weights: {percentile_to_prune:.2f}")
+    snr_threshold = torch.quantile(snr, q=percentile_to_prune)
+    print(f"{snr_threshold=}")
+
+    print("\nNo pruning")
+    x = torch.randn((128, 784))
+    with torch.no_grad():
+        out, _ = model(x)
+    
+    print("\nWith pruning")
+    with torch.no_grad():
+        out, _ = model(x, prune_weights=True, pruning_threshold=snr_threshold)
+
+    print("\nWith pruning with multiple samples")
+    with torch.no_grad():
+        out, _ = model(x, n_samples=5, prune_weights=True, pruning_threshold=snr_threshold)
+    
+    print(out.shape)
+
+    
+
+            
+
 
 
 if __name__ == "__main__":

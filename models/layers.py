@@ -56,7 +56,7 @@ class VariationalLinear(nn.Module):
         self.prior_distribution = prior_distribution
 
 
-    def forward(self, x:torch.Tensor):
+    def forward(self, x:torch.Tensor, prune_weights=False, pruning_threshold=0.0):
         '''
             Args:
                 x: input tensor of size (batch_size, in_features)
@@ -70,10 +70,16 @@ class VariationalLinear(nn.Module):
         kl_divergence = 0
 
         # Calculate W
+        sigma_weights = F.softplus(self.rho_weights)
         weight_distribution = D.Normal(
-            loc=self.mu_weights, scale=F.softplus(self.rho_weights)
+            loc=self.mu_weights, scale=sigma_weights
         )
         W = weight_distribution.rsample()
+        if prune_weights:
+            snr = self.mu_weights.abs() / sigma_weights
+            mask = snr <= pruning_threshold
+            W[mask] = 0
+        print(f"W: {(W == 0).sum() / W.nelement()}")
 
         # Calculate weight contribution to KL divergence
         kl_divergence += weight_distribution.log_prob(W).sum()
@@ -84,10 +90,16 @@ class VariationalLinear(nn.Module):
 
         # Handle bias
         if self.bias:
+            sigma_bias = F.softplus(self.rho_bias)
             bias_distribution = D.Normal(
-                loc=self.mu_bias, scale=F.softplus(self.rho_bias)
+                loc=self.mu_bias, scale=sigma_bias
             )
             b = bias_distribution.rsample()
+            if prune_weights:
+                snr = self.mu_bias.abs() / sigma_bias
+                mask = snr <= pruning_threshold
+                b[mask] = 0
+            print(f"b: {(b == 0).sum() / b.nelement()}")
 
             # Add the bias
             out += b
