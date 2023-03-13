@@ -3,6 +3,8 @@ from torch import nn
 import torch.nn.functional as F
 import torch.distributions as D
 
+from models.layers import VariationalLinear
+
 
 class GATLayer(nn.Module):
     def __init__(self,in_features,out_features,n_heads=1,is_concat=True,dropout=0.6,leaky_relu=0.2):
@@ -33,7 +35,7 @@ class GATLayer(nn.Module):
         # t=input()
         n_nodes = inp.shape[0]
         
-        adj = torch.zeros(n_nodes,n_nodes)
+        adj = torch.zeros(n_nodes, n_nodes)
         
         # print(adj.shape)
         
@@ -68,7 +70,9 @@ def softplus_inverse(x):
         
 
 class VGATLayer(nn.Module):
-    def __init__(self,in_features,out_features,n_heads,prior_distribution,nonlinearity='relu',bias=True,is_concat=True,dropout=True,leaky_relu=0.2):
+    def __init__(
+            self, in_features, out_features, n_heads,
+            prior_distribution,nonlinearity='relu', bias=True,is_concat=True,dropout=True,leaky_relu=0.2):
         super(GATLayer,self).__init__()
         
         
@@ -90,6 +94,12 @@ class VGATLayer(nn.Module):
         
         self.mu_weights = nn.Parameter(torch.empty(self.n_hidden*n_heads,in_features).fill_(0))
         self.rho_weights = nn.Parameter(torch.empty(self.n_hidden*n_heads,in_features).fill_(scale))
+
+        self.W = VariationalLinear(
+            in_features=in_features, out_features=self.n_hidden * n_heads,
+            prior_distribution=prior_distribution,
+            bias=False, # the usual GAT does not use a bias
+        )
         
         
         self.a = nn.Parameter(torch.empty(1,2*self.n_hidden).fill_(0))
