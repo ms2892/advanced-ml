@@ -42,7 +42,7 @@ class GAT(nn.Module):
     
 class VGAT(nn.Module):
     def __init__(self,in_features,n_hidden,n_classes,n_heads,prior_distro,dropout=0.6,leaky_relu=0.2):
-        super(VGAT,self).__init__()    
+        super(VGAT,self).__init__()     
         self.layers = nn.ModuleList([
             VGATLayer(
                 in_features,n_hidden,1,prior_distribution=prior_distro,dropout=dropout,leaky_relu=leaky_relu
