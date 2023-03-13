@@ -5,6 +5,8 @@ import numpy as np
 import os
 import logging
 import urllib
+import pandas as pd
+from sklearn.preprocessing import OneHotEncoder
 
 # Imports
 #==================================#
@@ -217,4 +219,31 @@ class Datasets():
             logging.info('Folder for UCI Mushroom found in the data folder. If the files are corrupted please delete the folder at location ../data/UCI_Mushroom and re-run this command')
             
             
-            
+    def get_UCI(self):
+        df = pd.read_csv("data/UCI_Mushroom/agaricus-lepiota.data", header=None)
+
+        # Find the labels
+        labels = df.pop(df.columns[0])
+        labels = pd.Categorical(labels, categories=["p", "e"]).codes
+        labels
+
+        # Get the contexts
+        for col in df:
+            df[col] = pd.Categorical(df[col]).codes
+        contexts = OneHotEncoder(sparse_output=False, dtype=np.float32).fit_transform(df)
+
+        # Convert to torch tensors
+        contexts = torch.tensor(contexts)
+        labels = torch.tensor(labels, dtype=bool)
+
+        return contexts, labels
+
+
+if __name__ == "__main__":
+    db = Datasets()
+    db.download_UCI()
+
+    x, labels = db.get_UCI()
+    print(x.shape)
+    print(x)
+    print(labels)
