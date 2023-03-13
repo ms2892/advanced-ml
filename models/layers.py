@@ -79,7 +79,6 @@ class VariationalLinear(nn.Module):
             snr = self.mu_weights.abs() / sigma_weights
             mask = snr <= pruning_threshold
             W[mask] = 0
-        print(f"W: {(W == 0).sum() / W.nelement()}")
 
         # Calculate weight contribution to KL divergence
         kl_divergence += weight_distribution.log_prob(W).sum()
@@ -99,7 +98,6 @@ class VariationalLinear(nn.Module):
                 snr = self.mu_bias.abs() / sigma_bias
                 mask = snr <= pruning_threshold
                 b[mask] = 0
-            print(f"b: {(b == 0).sum() / b.nelement()}")
 
             # Add the bias
             out += b

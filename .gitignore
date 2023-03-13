@@ -10,3 +10,4 @@ trainer_debug.log
 .DS_Store
 weights/
 *.rar
+RL_runs/
