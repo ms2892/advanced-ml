@@ -11,3 +11,4 @@ trainer_debug.log
 weights/
 *.rar
 RL_runs/
+figures/
