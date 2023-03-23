@@ -1,5 +1,4 @@
-# from models.glayers import GATLayer, VGATLayer
-from glayers import GATLayer, VGATLayer
+from models.glayers import GATLayer, VGATLayer
 
 import torch
 import torch.nn as nn
