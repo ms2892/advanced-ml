@@ -31,21 +31,15 @@ class GAT(nn.Module):
         )
 
 
-    def forward(self, data):
-        x, edge_index = data.x,data.edge_index
+    def forward(self, x, A):
         
-        # x = F.dropout(x,p=0.6,training=self.training)
-        x = self.gat1(x,edge_index)
-        # print(x.shape)
+        x = self.gat1(x, A)
+       
         x = F.elu(x)
-        # x = F.dropout(x,p=0.6,training=self.training)
-        x = self.gat2(x,edge_index)
+
+        x = self.gat2(x, A)
         
-        x = F.elu(x)
-        
-        x = self.gat3(x,edge_index)
-        
-        return F.log_softmax(x, dim=1)
+        return x
 
     
 class VGAT(nn.Module):

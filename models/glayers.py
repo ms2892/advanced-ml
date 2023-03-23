@@ -3,8 +3,8 @@ from torch import nn
 import torch.nn.functional as F
 import torch.distributions as D
 
-# from models.layers import VariationalLinear
-from layers import VariationalLinear
+from models.layers import VariationalLinear
+# from layers import VariationalLinear
 
 
 class GATLayer(nn.Module):
