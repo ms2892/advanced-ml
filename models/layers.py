@@ -45,13 +45,13 @@ class VariationalLinear(nn.Module):
         # Note that initialization is so that initially the sampled weights follow
         # N(0, gain ** 2 / in_features) distribution. This helps retain output distribution to
         # be closer to standard normal
-        self.mu_weights = nn.Parameter(torch.empty(out_features, in_features).fill_(0))
-        self.rho_weights = nn.Parameter(torch.empty(out_features, in_features).fill_(scale))
+        self.mu_weights = nn.Parameter(torch.empty(out_features, in_features).normal_(0, 0.1))
+        self.rho_weights = nn.Parameter(torch.empty(out_features, in_features).normal_(scale, 0.1))
 
         if bias:
             # Same initialization as above
-            self.mu_bias = nn.Parameter(torch.empty(out_features).fill_(0))
-            self.rho_bias = nn.Parameter(torch.empty(out_features).fill_(scale))
+            self.mu_bias = nn.Parameter(torch.empty(out_features).normal_(0, 0.1))
+            self.rho_bias = nn.Parameter(torch.empty(out_features).normal_(scale, 0.1))
         
         self.prior_distribution = prior_distribution
 
@@ -79,9 +79,6 @@ class VariationalLinear(nn.Module):
         kl_divergence += weight_distribution.log_prob(W).sum()
         kl_divergence -= self.prior_distribution.log_prob(W).sum()
 
-        # Multiply input by W
-        out = torch.mm(x, W.T)
-
         # Handle bias
         if self.bias:
             bias_distribution = D.Normal(
@@ -89,12 +86,14 @@ class VariationalLinear(nn.Module):
             )
             b = bias_distribution.rsample()
 
-            # Add the bias
-            out += b
-
             # Calculate bias contribution to KL divergence
             kl_divergence += bias_distribution.log_prob(b).sum()
             kl_divergence -= self.prior_distribution.log_prob(b).sum()
+        
+        if self.bias:
+            out = F.linear(x, W, b)
+        else:
+            out = F.linear(x, W)
 
         return out, kl_divergence
 
