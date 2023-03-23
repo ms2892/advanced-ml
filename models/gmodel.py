@@ -5,6 +5,30 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class GATELBO(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, logits, y_true, kl_divergence):
+        nll = self._get_neg_log_lik(logits=logits, y_true=y_true)
+
+        elbo = kl_divergence + nll
+        
+        return elbo, nll
+
+
+    def _get_neg_log_lik(self, logits, y_true):
+        n_samples = logits.shape[1]
+
+        out = F.cross_entropy(
+            logits.transpose(2, 1),
+            y_true.unsqueeze(-1).repeat(repeats=(1, n_samples)),
+            reduction="none"
+        )
+
+        return out.sum(dim=0).mean(dim=0)
+
+
 class GAT(nn.Module):
     
     def __init__(
