@@ -8,24 +8,31 @@ class GATELBO(nn.Module):
     def __init__(self):
         super().__init__()
         
-    def forward(self,outputs,labels,kl_div,kl_weight):
-        nll = F.nll_loss(outputs,labels)
+    def forward(self, outputs, labels, kl_div, kl_weight):
+        nll = F.nll_loss(outputs, labels)
         
-        elbo = kl_weight*kl_div + nll
+        elbo = kl_weight * kl_div + nll
         
         return elbo,nll
 
+
 class GAT(nn.Module):
     
-    def __init__(self,in_features,n_hidden,n_classes,n_heads=1,dropout=0.6,leaky_relu=0.2):
-        super(GAT,self).__init__()
+    def __init__(self, in_features, hidden_features, num_classes, n_heads=1, dropout=0.6, leaky_relu=0.2):
+        super(GAT, self).__init__()
         
-        self.gat1 = GATLayer(in_features,n_hidden,n_heads,dropout=dropout,leaky_relu=leaky_relu)
-        self.gat2 = GATLayer(n_hidden*n_heads,n_hidden,n_heads,dropout=dropout,leaky_relu=leaky_relu)
-        self.gat3 = GATLayer(n_hidden*n_heads,n_classes,1,dropout=dropout,is_concat=False,leaky_relu=leaky_relu)
-        
-    def forward(self,data):
-        x,edge_index = data.x,data.edge_index
+        self.gat1 = GATLayer(
+            in_features, hidden_features, n_heads,
+            dropout=dropout, leaky_relu=leaky_relu
+        )
+        self.gat2 = GATLayer(
+            hidden_features, num_classes, 1,
+            dropout=dropout, is_concat=False, leaky_relu=leaky_relu
+        )
+
+
+    def forward(self, data):
+        x, edge_index = data.x,data.edge_index
         
         # x = F.dropout(x,p=0.6,training=self.training)
         x = self.gat1(x,edge_index)
@@ -38,7 +45,8 @@ class GAT(nn.Module):
         
         x = self.gat3(x,edge_index)
         
-        return F.log_softmax(x,dim=1)
+        return F.log_softmax(x, dim=1)
+
     
 class VGAT(nn.Module):
     def __init__(self,in_features,n_hidden,n_classes,n_heads,prior_distro,dropout=0.6,leaky_relu=0.2):
