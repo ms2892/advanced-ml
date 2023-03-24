@@ -15,7 +15,7 @@ class VariationalLinear(nn.Module):
     def __init__(
         self,
         in_features:int, out_features:int, prior_distribution, bias=True,
-        nonlinearity="relu", param=None,
+        nonlinearity="relu", param=None, elementwise=False,
     ):
         '''
             Args:
@@ -36,6 +36,10 @@ class VariationalLinear(nn.Module):
         super().__init__()
 
         self.bias = bias
+        self.elementwise = elementwise
+
+        # Elementwise and bias is not currently supported
+        assert not (elementwise and bias)
 
         # Calculate gain
         gain = torch.nn.init.calculate_gain(nonlinearity=nonlinearity, param=param)
@@ -89,6 +93,10 @@ class VariationalLinear(nn.Module):
             # Calculate bias contribution to KL divergence
             kl_divergence += bias_distribution.log_prob(b).sum()
             kl_divergence -= self.prior_distribution.log_prob(b).sum()
+
+        if self.elementwise:
+            out = W.T[None, :, :] * x
+            return out, kl_divergence
         
         if self.bias:
             out = F.linear(x, W, b)

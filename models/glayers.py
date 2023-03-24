@@ -94,12 +94,12 @@ class VGATLayer(nn.Module):
         
         # Avoid concat by applying a_left to the 1st vector and a_right to the 2nd
         self.a_left = VariationalLinear(
-            self.hidden_features, 1,
-            prior_distribution=prior_distribution, bias=False
+            n_heads, self.hidden_features,
+            prior_distribution=prior_distribution, bias=False, elementwise=True
         )
         self.a_right = VariationalLinear(
-            self.hidden_features, 1,
-            prior_distribution=prior_distribution, bias=False
+            n_heads, self.hidden_features,
+            prior_distribution=prior_distribution, bias=False, elementwise=True,
         )
         a = (6 / (in_features + 1))**0.5
         scale = (a**2 / 3)**0.5 # this is the best scale to approximate uniform with normal
@@ -124,25 +124,26 @@ class VGATLayer(nn.Module):
         # (n_heads, N, hidden_features)
         h, tmp_kl_divergence = self.W(inp)
         kl_divergence += tmp_kl_divergence
-        h = h.view(self.n_heads, -1, self.hidden_features)
+        h = h.view(-1, self.n_heads, self.hidden_features)
 
-
-        logits_source, tmp_kl_divergence = self.a_left(h) # (n_heads, N, 1)
+        logits_source, tmp_kl_divergence = self.a_left(h) # (N, n_heads, hidden_features)
+        logits_source = logits_source.sum(dim=-1, keepdim=True).transpose(0, 1) # (n_heads, N, 1)
         kl_divergence += tmp_kl_divergence
 
-        logits_target, tmp_kl_divergence = self.a_right(h) # (n_heads, 1, N)
-        logits_target = logits_target.transpose(1, 2)
+        logits_target, tmp_kl_divergence = self.a_right(h) # (N, n_heads, hidden_features)
+        logits_target = logits_target.sum(dim=-1, keepdim=True).permute(1, 2, 0) # (n_heads, 1, N)
         kl_divergence += tmp_kl_divergence
 
         attention_coeffs = self.leaky_relu(logits_source + logits_target)
         attention_coeffs = attention_coeffs + A
-        attention_coeffs = F.softmax(attention_coeffs, dim=-1)
+        attention_coeffs = F.softmax(attention_coeffs, dim=-1) # (n_heads, N, N)
 
         # Apply dropout
         # attention_coeffs = F.dropout(attention_coeffs, p=self.dropout, training=self.training)
-
-        out_node_features = torch.bmm(attention_coeffs, h)
-        out_node_features = out_node_features.transpose(0, 1)
+        
+        # (n_heads, N, N) x (n_heads, N, hidden_features) = (n_heads, N, hidden_features)
+        out_node_features = torch.bmm(attention_coeffs, h.transpose(0, 1))
+        out_node_features = out_node_features.transpose(0, 1) # (N, n_heads, hidden_features)
         
         if self.concat:
             # Concat over head dimension
@@ -190,7 +191,7 @@ if __name__ == "__main__":
     )
     model = VGATLayer(
         in_features=1433, out_features=64, n_heads=8,
-        prior_distribution=prior_distribution,
+        prior_distribution=prior_distribution, is_concat=True,
     )
     with torch.no_grad():
         output, kl_divergence = model(x, A)
