@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.distributions as D
 
 from models.layers import VariationalLinear, softplus_inverse
+# from layers import VariationalLinear, softplus_inverse
 
 
 class GATLayer(nn.Module):
@@ -22,10 +23,10 @@ class GATLayer(nn.Module):
         nn.init.xavier_uniform_(self.W.weight) # there was no gain in the original implementation
         
         # Avoid concat by applying a_left to the 1st vector and a_right to the 2nd
-        self.a_left = nn.Linear(self.hidden_features, 1, bias=False)
-        nn.init.xavier_uniform_(self.a_left.weight) # there was no gain in the original implementation
-        self.a_right = nn.Linear(self.hidden_features, 1, bias=False)
-        nn.init.xavier_uniform_(self.a_right.weight) # there was no gain in the original implementation
+        self.a_left = nn.Parameter(torch.Tensor(1, n_heads, self.hidden_features))
+        nn.init.xavier_uniform_(self.a_left) # there was no gain in the original implementation
+        self.a_right = nn.Parameter(torch.Tensor(1, n_heads, self.hidden_features))
+        nn.init.xavier_uniform_(self.a_right) # there was no gain in the original implementation
         
         self.leaky_relu = nn.LeakyReLU(leaky_relu)
         self.dropout = dropout
@@ -40,11 +41,11 @@ class GATLayer(nn.Module):
         inp = F.dropout(inp, p=self.dropout, training=self.training)
         
         # (n_heads, N, hidden_features)
-        h = self.W(inp).view(self.n_heads, -1, self.hidden_features)
+        h = self.W(inp).view(-1, self.n_heads, self.hidden_features)
 
+        logits_source = torch.sum(h * self.a_left, dim=-1, keepdim=True).transpose(0, 1) # (n_heads, N, 1)
+        logits_target = torch.sum(h * self.a_left, dim=-1, keepdim=True).permute(1, 2, 0) # (n_heads, 1, N)
 
-        logits_source = self.a_left(h) # (n_heads, N, 1)
-        logits_target = self.a_right(h).transpose(1, 2) # (n_heads, 1, N)
         attention_coeffs = self.leaky_relu(logits_source + logits_target)
         attention_coeffs = attention_coeffs + A
         attention_coeffs = F.softmax(attention_coeffs, dim=-1)
@@ -52,7 +53,7 @@ class GATLayer(nn.Module):
         # Apply dropout
         attention_coeffs = F.dropout(attention_coeffs, p=self.dropout, training=self.training)
 
-        out_node_features = torch.bmm(attention_coeffs, h)
+        out_node_features = torch.bmm(attention_coeffs, h.transpose(0, 1))
         out_node_features = out_node_features.transpose(0, 1)
         
         if self.concat:
